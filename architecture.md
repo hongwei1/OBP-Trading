@@ -376,3 +376,284 @@ class KafkaOfferConnector[F[_]: Async](producer: KafkaProducer[String, String])
 - Distributed caching with Redis Cluster
 - Microservice decomposition
 - Connector load balancing and failover
+
+---
+
+# Architecture Update — Market Role with Per‑Trade On‑Chain Release (MVP: Limit Orders)
+
+This section aligns OBP‑Trading with the “Market” component from the design diagrams and locks the following decisions:
+
+- Only limit orders in MVP
+- Per‑trade on‑chain release to the buyer address, after fiat capture, with N confirmations
+- Settlement follows TCC/Saga at business layer: preAuth → captureFiat → on‑chain release → finalize; on failure → compensate
+
+## Domain Model (Conceptual)
+
+- User: userId, kycStatus
+- Account
+  - FiatAccount: accountId, currency=EUR, available, holding
+  - TokenAccount: accountId, currency=OGCR, available, holding, custodialHint(address/escrowSubId)
+- Order: orderId, side(BUY|SELL), price, quantity, remaining, status, ownerAccountId, createdAt
+- Trade: tradeId, buyOrderId, sellOrderId, price, quantity, status, paymentAuthId?, onChainTxId?, executedAt, settledAt?
+- Holding: accountId, asset(EUR/OGCR), amount, reason(order|preauth), state(CREATED|PARTIALLY_RELEASED|RELEASED)
+- PaymentAuth: authId, buyerFiatAccountId, amountFiat, state(PREAUTH|CAPTURED|RELEASED), idempotencyKey
+- OnChainTx: txId, network, function(release/withdraw), from, to, amount, confirmations, state(PENDING|CONFIRMED|FAILED)
+
+## Modules & Responsibilities
+
+- OrderBook & Matching
+  - Price‑level FIFO; partial fills; generates Trade(tradeId)
+  - Locks: moves seller OGCR from Available→Holding; buyer EUR from Available→Holding
+
+- Settlement Orchestrator
+  - Implements TCC/Saga with idempotency; state machine for Trade
+  - Steps: preAuthorizeFiat → captureFiat → releaseTokenOnChain → finalize
+  - Compensation: releaseFiatPreauth, revert token holds (if release failed), mark trade FAILED
+
+- EthereumEscrow Connector
+  - release(fromSeller, toBuyerAddress, amount, tradeId)
+  - Poll N confirmations, reorg‑safe checks, gas strategy (maxFeePerGas, priorityFee)
+  - Emits chain.release.requested / chain.release.confirmed / chain.release.failed
+
+- OBPPayments Connector
+  - preAuth(buyerFiatAccountId, amountFiat, idempotencyKey)
+  - capture(authId) and release(authId)
+  - Maps to OBP‑API endpoints and error model; propagates idempotency keys
+
+- Balance Service
+  - Maintains Available/Holding for EUR & OGCR; enforces invariants
+  - OGCR: Available + Holding ≤ Custodial (escrow mirror)
+
+- Event Bus & Outbox
+  - Topics: order.*, trade.*, fiat.*, chain.*
+  - Outbox table ensures at‑least‑once with idempotency keys: orderId, tradeId, paymentAuthId, txHash
+
+- Reconciliation
+  - L1: Escrow on‑chain total == Σ user(OGCR Available + Holding)
+  - L2: Internal ledgers == OBP account balances (EUR/OGCR)
+  - L3: Trust Account balance == Σ user(EUR Available + Holding) and matches CBS statements
+
+- Security & Compliance
+  - KYC/AML gate for order/withdrawal; sanctions screening
+  - Rate limit per user; audit logs; WORM export pipeline
+
+## Settlement Flow (Per‑Trade On‑Chain Release)
+
+1) Match: OrderBook creates Trade(tradeId) with qty Q, price P
+2) Try / Prepare:
+   - Ensure seller OGCR Holding ≥ Q; buyer EUR Holding ≥ Q*P
+3) Confirm step 1 — Fiat capture:
+   - OBPPayments.capture(authId) → Mark buyer EUR Holding − amount, seller EUR Available + amount
+4) Confirm step 2 — On‑chain release:
+   - EthereumEscrow.release(sellerEscrow, buyerAddress, Q, tradeId)
+   - Wait N confirmations; update OnChainTx → CONFIRMED
+   - Move seller OGCR Holding −Q; buyer OGCR Available +Q
+5) Finalize Trade → DONE, emit trade.settled
+
+Failure/Compensation:
+- If capture fails: release preAuth, revert any temp holds → Trade FAILED
+- If chain release fails (or stuck): auto‑retry with backoff; after TTL: ops alert; if unrecoverable, initiate fiat refund or create compensating trade per policy
+- Reorg: if confirmations drop below N (chain reorg), temporarily freeze affected balances, re‑validate, re‑emit events
+
+## API Surface (Conceptual)
+
+- POST /market/orders { side, price, quantity, accountId }
+- DELETE /market/orders/{orderId}
+- POST /market/matches { orderId, counterOrderId, amount, price } → tradeId
+- POST /market/settlements { tradeId }  // idempotent step‑up of TCC
+- POST /market/deposits  // watcher intake for on‑chain deposits to escrow
+- POST /market/withdrawals { accountId, amount, address }  // chain withdraw
+- GET /market/orders/{id}, GET /market/trades/{id}
+
+Notes:
+- External clients call Orders; Matches/Settlements may be internal (or admin‑guarded) depending on deployment
+
+## Events & Idempotency
+
+- order.opened/updated/canceled
+- trade.created/settled/failed
+- fiat.preauthorized/captured/released
+- chain.release.requested/confirmed/failed
+
+Every event carries: eventId, idempotencyKey, occurredAt, traceId, actor
+Idempotency keys: orderId, tradeId, paymentAuthId, onChainTxHash
+
+## Configuration & Operations
+
+- market.perTradeRelease=true
+- chain.network=ethereum; chain.confirmations=N (e.g., 12 mainnet, 3 testnet)
+- settlement.timeouts: preauthTTL, captureTTL, releaseTTL
+- gas.maxFeePerGas, gas.priorityFee, gas.limitSafetyFactor
+- reorg.maxDepth, reorg.freezePolicy
+
+## Failure Modes & Policies
+
+- Payments: capture timeout → release preAuth; alert; rate limit intake
+- Chain: nonce too low/gas price too low → dynamic bump; stuck mempool → replacement policy
+- Reorg: if tx dropped, re‑submit; if conflicting state observed, freeze and manual runbook
+- Idempotency: all mutating endpoints require Idempotency‑Key header
+
+## Reconciliation & Alerts
+
+- Daily L1/L2/L3 checks; discrepancy thresholds with pager alerts
+- On discrepancy: freeze related orders/withdrawals; generate incident ticket with evidence bundle (events, postings, txs)
+
+## MVP Boundaries & Risks / Trade‑offs
+
+In‑scope
+- Limit orders; per‑trade on‑chain release; EUR+OGCR only; manual KYC gate; daily reconciliation
+
+Out‑of‑scope (future)
+- Market orders; advanced order types; batch settlement; multi‑asset routing; cross‑chain bridges
+
+Risks & Trade‑offs
+- Gas & latency overhead for per‑trade release; operational complexity on reorgs
+- Strong auditability and non‑repudiation benefits; simpler user mental model
+
+## Detailed Specifications (fulfilling the plan To‑dos)
+
+### A. Domain Types (fields)
+
+- User
+  - userId: String
+  - kycStatus: Pending|Approved|Rejected
+  - createdAt: Instant
+
+- FiatAccount (EUR)
+  - accountId: String, userId: String, currency: "EUR"
+  - available: BigDecimal, holding: BigDecimal
+  - metadata: Map[String,String]
+
+- TokenAccount (OGCR)
+  - accountId: String, userId: String, currency: "OGCR"
+  - available: BigDecimal, holding: BigDecimal
+  - chainAddress: String, escrowSubId: Option[String]
+  - metadata: Map[String,String]
+
+- Order
+  - orderId: String, side: BUY|SELL, price: BigDecimal, quantity: BigDecimal
+  - remaining: BigDecimal, status: NEW|OPEN|PARTIALLY_FILLED|FILLED|CANCELED|EXPIRED
+  - ownerAccountId: String, createdAt: Instant, expiresAt: Option[Instant]
+  - idempotencyKey: String
+
+- Trade
+  - tradeId: String, buyOrderId: String, sellOrderId: String
+  - price: BigDecimal, quantity: BigDecimal
+  - status: INIT|TRY_AUTH_FIAT|TOKEN_INTERNAL_MOVE|CAPTURE_FIAT|ONCHAIN_RELEASE|DONE|FAILED
+  - paymentAuthId: Option[String], onChainTxId: Option[String]
+  - executedAt: Instant, settledAt: Option[Instant]
+
+- Holding
+  - accountId: String, asset: EUR|OGCR
+  - amount: BigDecimal, reason: ORDER|PREAUTH
+  - state: CREATED|PARTIALLY_RELEASED|RELEASED
+  - relatedId: orderId or authId
+
+- PaymentAuth
+  - authId: String, buyerFiatAccountId: String, amountFiat: BigDecimal
+  - state: PREAUTH|CAPTURED|RELEASED
+  - idempotencyKey: String, createdAt: Instant, updatedAt: Instant
+
+- OnChainTx
+  - txId: String, network: String (ethereum)
+  - function: RELEASE|WITHDRAW, from: String, to: String, amount: BigDecimal
+  - confirmations: Int, requiredConfirmations: Int
+  - state: PENDING|CONFIRMED|FAILED
+  - hash: String, nonce: Long, gasUsed: Option[Long], error: Option[String]
+
+### B. API Surface (requests/responses — conceptual)
+
+- POST /market/orders
+  - Request: { side, price, quantity, accountId, idempotencyKey }
+  - Response: { orderId, status, remaining }
+
+- DELETE /market/orders/{orderId}
+  - Response: { orderId, status: CANCELED }
+
+- POST /market/matches
+  - Request: { orderId, counterOrderId, amount, price }
+  - Response: { tradeId, status: INIT }
+
+- POST /market/settlements
+  - Request: { tradeId, step? } // step optional; server advances idempotently
+  - Response: { tradeId, status }
+
+- POST /market/deposits
+  - Request: { txHash, from, to, amount, confirmations }
+  - Response: { credited: Boolean, externalId: txHash }
+
+- POST /market/withdrawals
+  - Request: { accountId, amount, address, idempotencyKey }
+  - Response: { onChainTxId, state }
+
+- GET /market/orders/{id} → { ...Order }
+- GET /market/trades/{id} → { ...Trade, paymentAuth?, onChainTx? }
+
+Notes:
+- All mutating requests require Idempotency‑Key header.
+
+### C. Events, Idempotency & Outbox
+
+Topics and sample payload keys:
+- order.opened { orderId, side, price, quantity, ownerAccountId, traceId }
+- order.updated/canceled { orderId, status, remaining, traceId }
+- trade.created { tradeId, buyOrderId, sellOrderId, qty, price, traceId }
+- fiat.preauthorized/captured/released { authId, tradeId, amount, traceId }
+- chain.release.requested/confirmed/failed { tradeId, txHash, from, to, amount, confirmations, traceId }
+
+Outbox table (concept):
+- id(UUID), topic, key(idempotencyKey), payload(JSON), status(PENDING|SENT|FAILED), attempts(Int), nextAttemptAt(Instant), createdAt
+- Retry policy: exponential backoff (e.g., 1s, 5s, 30s, 5m, 30m), maxAttempts=20; DLQ after maxAttempts
+
+Idempotency keys:
+- orderId, tradeId, paymentAuthId, txHash; server dedups on key within TTL window
+
+### D. Reconciliation (L1/L2/L3) & Freeze Policy
+
+Schedule:
+- Daily at 02:00 UTC; ad‑hoc on incident
+
+Checks:
+- L1: sum(OGCR Available + Holding) == escrow on‑chain total (± buffer)
+- L2: internal ledgers (EUR/OGCR) == OBP accounts snapshot
+- L3: trust account balance == sum(EUR Available + Holding) and equals CBS statement
+
+On discrepancy:
+- if |delta| > threshold: freeze withdrawals and new orders for involved accounts; raise P1 alert; create incident report with evidence (events, postings, txs)
+
+### E. Security & Compliance
+
+- KYC/AML gating: registration → KYC Approved before order/withdrawal
+- Sanctions screening on user and destination addresses (withdrawals)
+- Rate limits: default 60 req/min/user; settlement steps 10/min/trade
+- Audit: append‑only logs with traceId, subjectId, actor, ip, userAgent; WORM export daily
+
+### F. Configuration (defaults)
+
+```hocon
+market.perTradeRelease = true
+chain.network = "ethereum"
+chain.confirmations = 12         # 3 on testnet
+settlement.timeout.preauth = 10m
+settlement.timeout.capture = 5m
+settlement.timeout.release = 30m
+gas.maxFeePerGas = "auto"        # or numeric gwei
+gas.priorityFee = "auto"
+gas.limitSafetyFactor = 1.2
+reorg.maxDepth = 3
+reorg.freezePolicy = "freeze-affected-accounts"
+```
+
+### G. Failure Modes → Compensation Mapping
+
+- preAuth timeout → cancel trade, release holds, notify user
+- capture failed → release preAuth, revert holds, trade FAILED
+- chain tx stuck → bump gas & retry; after TTL, alert + manual runbook
+- chain tx failed/reverted → refund/counter‑post per policy; trade FAILED
+- reorg reduces confirmations < N → temporary freeze, revalidate, re‑emit
+
+### H. MVP Constraints & Non‑Goals (explicit)
+
+In‑scope: limit orders; per‑trade release; single asset pair (EUR↔OGCR); manual KYC; daily reconciliation; idempotent APIs
+
+Out‑of‑scope: market orders; batch releases; multi‑asset routing; cross‑chain bridges; automated KYC providers; intraday full auto‑recon
