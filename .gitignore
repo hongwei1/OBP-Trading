@@ -136,3 +136,6 @@ dump.rdb
 # Build artifacts
 dist/
 build/
+
+*.code-workspace
+.specstory
