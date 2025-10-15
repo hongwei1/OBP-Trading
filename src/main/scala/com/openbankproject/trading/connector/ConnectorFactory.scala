@@ -31,7 +31,7 @@ import scala.concurrent.duration._
  * Factory for creating connector instances based on configuration
  * Supports Redis, PostgreSQL, RabbitMQ, and Kafka connectors
  */
-class ConnectorFactory[F[_]: Async] {
+class DefaultConnectorFactory[F[_]: Async] extends ConnectorFactory[F] {
 
   /**
    * Creates an offer connector based on configuration
@@ -248,12 +248,12 @@ class ConnectorFactory[F[_]: Async] {
   }
 }
 
-object ConnectorFactory {
+object ConnectorFactories {
   
   /**
    * Creates a connector factory instance
    */
-  def apply[F[_]: Async]: ConnectorFactory[F] = new ConnectorFactory[F]
+  def default[F[_]: Async]: ConnectorFactory[F] = new DefaultConnectorFactory[F]
   
   /**
    * Creates connector configuration from Typesafe Config

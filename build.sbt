@@ -11,14 +11,15 @@ lazy val slickVersion = "3.4.1"
 lazy val liftVersion = "3.5.0"
 
 resolvers ++= Seq(
+  Resolver.mavenCentral,
   "Typesafe repository" at "https://repo.typesafe.com/typesafe/releases/",
   "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots",
-  "Local Maven Repository" at "file://" + Path.userHome.absolutePath + "/.m2/repository"
+  // "Local Maven Repository" at "file://" + Path.userHome.absolutePath + "/.m2/repository"
 )
 
 libraryDependencies ++= Seq(
-  // OBP Commons
-  "com.openbankproject" %% "obp-commons" % "2024.1.0-SNAPSHOT",
+  // OBP Commons (disabled for local demo until available in repos)
+  // "com.openbankproject" %% "obp-commons" % "2024.1.0-SNAPSHOT",
   
   // Http4s (like OBP-API-II)
   "org.http4s" %% "http4s-ember-server" % http4sVersion,
@@ -60,7 +61,8 @@ libraryDependencies ++= Seq(
   
   // Message Brokers
   "dev.zio" %% "zio-kafka" % "2.7.2",
-  "com.github.fd4s" %% "fs2-rabbit" % "5.1.0",
+  // RabbitMQ client (disabled for local demo if not resolvable)
+  // "com.github.fd4s" %% "fs2-rabbit" % "5.1.0",
   
   // Logging
   "ch.qos.logback" % "logback-classic" % "1.4.14",
@@ -94,12 +96,24 @@ libraryDependencies ++= Seq(
   // Testing
   "org.scalatest" %% "scalatest" % "3.2.17" % Test,
   "org.scalatestplus" %% "mockito-4-11" % "3.2.17.0" % Test,
-  "org.http4s" %% "http4s-testing" % http4sVersion % Test,
+  // "org.http4s" %% "http4s-testing" % http4sVersion % Test,
   "org.typelevel" %% "cats-effect-testing-scalatest" % "1.5.0" % Test,
   "com.h2database" % "h2" % "2.2.224" % Test,
   "org.testcontainers" % "testcontainers" % "1.19.3" % Test,
   "org.testcontainers" % "postgresql" % "1.19.3" % Test
 )
+
+// Temporarily exclude problematic sources to run the demo entrypoint
+Compile / unmanagedSources := (Compile / unmanagedSources).value.filterNot { f =>
+  val n = f.getName
+  Set(
+    // heavy/unfinished connectors and validation that block demo build
+    "RedisOfferConnector.scala",
+    "ConnectorFactory.scala",
+    "Connector.scala",
+    "validation.scala"
+  ).contains(n)
+}
 
 // Compiler options
 scalacOptions ++= Seq(

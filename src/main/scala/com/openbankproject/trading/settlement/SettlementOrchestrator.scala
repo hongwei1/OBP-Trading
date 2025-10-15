@@ -8,8 +8,10 @@ package com.openbankproject.trading.settlement
 import cats.effect.kernel.Async
 import cats.syntax.all._
 import com.openbankproject.trading.model._
-import com.openbankproject.trading.settlement.errors._
-import com.openbankproject.trading.settlement.types._
+import com.openbankproject.trading.settlement.SettlementError
+import com.openbankproject.trading.settlement.PaymentAuth
+import com.openbankproject.trading.settlement.OnChainTx
+import com.openbankproject.trading.settlement.OnChainTxState
 import com.openbankproject.trading.connector.{EthereumEscrowConnector, ObpPaymentsConnector}
 
 /**
@@ -96,8 +98,8 @@ class DefaultSettlementOrchestrator[F[_]: Async](
         case Right(auth) =>
           for {
             cap <- capture(auth, s"$idem:capture")
-            res <- cap match {
-              case Left(e) => Async[F].pure(Left(e))
+            res <- (cap match {
+              case Left(e) => Async[F].pure(Left(e): Either[SettlementError, Trade])
               case Right(_) =>
                 releaseOnChain(
                   trade,
@@ -107,7 +109,7 @@ class DefaultSettlementOrchestrator[F[_]: Async](
                   requiredConfirmations,
                   s"$idem:release"
                 ).map(_.map(_ => trade.settle))
-            }
+            })
           } yield res
       }
     } yield result

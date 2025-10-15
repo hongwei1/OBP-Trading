@@ -78,7 +78,7 @@ class RedisOfferConnector[F[_]: Async](redis: RedisCommands[F, String, String])
   override def createOffer(offer: Offer): F[Either[ConnectorError, Offer]] = {
     for {
       json <- Async[F].delay(offer.asJson.noSpaces)
-      _ <- redis.setEx(offerKey(offer.id), json, DEFAULT_EXPIRY)
+      _ <- redis.setEx(offerKey(offer.offerId), json, DEFAULT_EXPIRY)
       _ <- redis.zAdd(userOffersKey(offer.userId), offer.createdAt.toEpochMilli.toDouble, offer.offerId.value)
       _ <- redis.zAdd(symbolOffersKey(offer.symbol), priceScore(offer), offer.offerId.value)
       _ <- redis.sAdd(activeOffersKey, offer.offerId.value)
@@ -87,7 +87,7 @@ class RedisOfferConnector[F[_]: Async](redis: RedisCommands[F, String, String])
 
   override def updateOffer(offer: Offer): F[Either[ConnectorError, Offer]] = {
     for {
-      exists <- redis.exists(offerKey(offer.id))
+      exists <- redis.exists(offerKey(offer.offerId))
       result <- if (exists) {
         for {
           json <- Async[F].delay(offer.asJson.noSpaces)
@@ -117,8 +117,7 @@ class RedisOfferConnector[F[_]: Async](redis: RedisCommands[F, String, String])
       result <- offerOpt match {
         case Right(Some(offer)) if offer.userId == userId =>
           for {
-            cancelledOffer = offer.copy(status = OfferStatus.Cancelled)
-            json <- Async[F].delay(cancelledOffer.asJson.noSpaces)
+            json <- Async[F].delay(offer.copy(status = OfferStatus.Cancelled).asJson.noSpaces)
             _ <- redis.setEx(offerKey(offerId), json, DEFAULT_EXPIRY)
             _ <- redis.sRem(activeOffersKey, offerId.value)
             _ <- redis.zRem(symbolOffersKey(offer.symbol), offerId.value)

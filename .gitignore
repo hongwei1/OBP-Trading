@@ -139,3 +139,6 @@ build/
 
 *.code-workspace
 .specstory
+project/project/metals.sbt
+project/metals.sbt
+.bsp/sbt.json
