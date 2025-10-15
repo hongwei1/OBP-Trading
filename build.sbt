@@ -108,8 +108,7 @@ Compile / unmanagedSources := (Compile / unmanagedSources).value.filterNot { f =
   val n = f.getName
   Set(
     // heavy/unfinished connectors that block full build now
-    "ConnectorFactory.scala",
-    "RedisOfferConnector.scala"
+    "ConnectorFactory.scala"
   ).contains(n)
 }
 

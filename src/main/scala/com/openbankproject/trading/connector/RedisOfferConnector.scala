@@ -23,7 +23,8 @@ import cats.effect.kernel.Async
 import cats.syntax.all._
 import com.openbankproject.trading.model._
 import dev.profunktor.redis4cats.RedisCommands
-import dev.profunktor.redis4cats.effects.Score
+import dev.profunktor.redis4cats.effects.{Score, ScoreWithValue}
+import io.lettuce.core.ZAddArgs
 import io.circe.syntax._
 import io.circe.parser._
 import java.time.Instant
@@ -80,8 +81,16 @@ class RedisOfferConnector[F[_]: Async](redis: RedisCommands[F, String, String])
     for {
       json <- Async[F].delay(offer.asJson.noSpaces)
       _ <- redis.setEx(offerKey(offer.offerId), json, DEFAULT_EXPIRY)
-      _ <- redis.zAdd(userOffersKey(offer.userId), Score(offer.createdAt.toEpochMilli.toDouble), offer.offerId.value)
-      _ <- redis.zAdd(symbolOffersKey(offer.symbol, offer.offerType), Score(priceScore(offer)), offer.offerId.value)
+      _ <- redis.zAdd(
+        userOffersKey(offer.userId),
+        Option.empty[ZAddArgs],
+        ScoreWithValue(Score(offer.createdAt.toEpochMilli.toDouble), offer.offerId.value)
+      )
+      _ <- redis.zAdd(
+        symbolOffersKey(offer.symbol, offer.offerType),
+        Option.empty[ZAddArgs],
+        ScoreWithValue(Score(priceScore(offer)), offer.offerId.value)
+      )
       _ <- redis.sAdd(activeOffersKey, offer.offerId.value)
     } yield (Right(offer): Either[ConnectorError, Offer])
   }.handleError(error => Left(ConnectionError(s"Failed to create offer: ${error.getMessage}", Some(error))))
@@ -93,10 +102,14 @@ class RedisOfferConnector[F[_]: Async](redis: RedisCommands[F, String, String])
         for {
           json <- Async[F].delay(offer.asJson.noSpaces)
           _ <- redis.setEx(offerKey(offer.offerId), json, DEFAULT_EXPIRY)
-          _ <- redis.zAdd(symbolOffersKey(offer.symbol, offer.offerType), Score(priceScore(offer)), offer.offerId.value)
+          _ <- redis.zAdd(
+            symbolOffersKey(offer.symbol, offer.offerType),
+            Option.empty[ZAddArgs],
+            ScoreWithValue(Score(priceScore(offer)), offer.offerId.value)
+          )
         } yield (Right(offer): Either[ConnectorError, Offer])
       } else {
-        Async[F].pure(Left(NotFoundError(s"Offer ${offer.offerId.value} not found")))
+        Async[F].pure(Left(NotFoundError(s"Offer ${offer.offerId.value} not found")): Either[ConnectorError, Offer])
       }
     } yield result
   }.handleError(error => Left(ConnectionError(s"Failed to update offer: ${error.getMessage}", Some(error))))
@@ -126,11 +139,11 @@ class RedisOfferConnector[F[_]: Async](redis: RedisCommands[F, String, String])
             _ <- redis.zRem(symbolOffersKey(offer.symbol, offer.offerType), offerId.value)
           } yield (Right(()): Either[ConnectorError, Unit])
         case Right(Some(_)) =>
-          Async[F].pure(Left(PermissionError(s"User $userId cannot cancel offer $offerId")))
+          Async[F].pure(Left(PermissionError(s"User $userId cannot cancel offer $offerId")): Either[ConnectorError, Unit])
         case Right(None) =>
-          Async[F].pure(Left(NotFoundError(s"Offer $offerId not found")))
+          Async[F].pure(Left(NotFoundError(s"Offer $offerId not found")): Either[ConnectorError, Unit])
         case Left(error) =>
-          Async[F].pure(Left(error))
+          Async[F].pure(Left(error): Either[ConnectorError, Unit])
       }
     } yield result
   }.handleError(error => Left(ConnectionError(s"Failed to cancel offer: ${error.getMessage}", Some(error))))
@@ -189,13 +202,13 @@ class RedisOfferConnector[F[_]: Async](redis: RedisCommands[F, String, String])
         timestamp = Instant.now(),
         sequence = System.currentTimeMillis()
       )
-    } yield Right(orderBook)
+    } yield (Right(orderBook): Either[ConnectorError, OrderBook])
   }.handleError(error => Left(ConnectionError(s"Failed to build order book: ${error.getMessage}", Some(error))))
 
   override def getMarketDepth(symbol: TradingSymbol): F[Either[ConnectorError, MarketDepth]] = {
     for {
-      buyCount <- redis.zCard(symbolOffersKey(symbol, OfferType.Buy))
-      sellCount <- redis.zCard(symbolOffersKey(symbol, OfferType.Sell))
+      buyCountOpt <- redis.zCard(symbolOffersKey(symbol, OfferType.Buy))
+      sellCountOpt <- redis.zCard(symbolOffersKey(symbol, OfferType.Sell))
       
       // Get best bid and ask
       bestBid <- redis.zRevRange(symbolOffersKey(symbol, OfferType.Buy), 0L, 0L)
@@ -216,10 +229,10 @@ class RedisOfferConnector[F[_]: Async](redis: RedisCommands[F, String, String])
           }
         })
       
-      depth = MarketDepth(
+      val depth: MarketDepth = MarketDepth(
         symbol = symbol,
-        bidCount = buyCount.toInt,
-        askCount = sellCount.toInt,
+        bidCount = buyCountOpt.getOrElse(0L).toInt,
+        askCount = sellCountOpt.getOrElse(0L).toInt,
         bestBid = bestBid.map(_.price),
         bestAsk = bestAsk.map(_.price),
         spread = for {
