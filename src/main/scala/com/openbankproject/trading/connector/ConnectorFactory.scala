@@ -23,6 +23,7 @@ import cats.effect.kernel.Async
 import cats.syntax.all._
 import com.typesafe.config.Config
 import dev.profunktor.redis4cats.Redis
+import slick.jdbc.JdbcBackend.Database
 import dev.profunktor.redis4cats.effect.Log.Stdout._
 
 /**
@@ -38,8 +39,24 @@ class DefaultConnectorFactory[F[_]: Async] extends ConnectorFactory[F] {
     config.connectorType.toLowerCase match {
       case Connector.REDIS =>
         createRedisOfferConnector(config)
-      case Connector.POSTGRES | Connector.RABBITMQ | Connector.KAFKA =>
-        Async[F].pure(Left(ConfigurationError(s"Offer connector '${config.connectorType}' not supported in this build")))
+      case Connector.POSTGRES =>
+        createPostgresOfferConnector(config)
+      case Connector.KAFKA =>
+        for {
+          bs <- Async[F].fromEither(Connector.getRequiredProperty(config, "bootstrap_servers"))
+          topic = Connector.getProperty(config, "offers_topic", "trading-offers")
+          c <- KafkaOfferConnector.inMemory[F](bs, topic).map(r => Right(r): Either[ConnectorError, OfferConnector[F]])
+        } yield c
+      case Connector.RABBITMQ =>
+        for {
+          host <- Async[F].fromEither(Connector.getRequiredProperty(config, "host"))
+          port <- Async[F].fromEither(parsePort(Connector.getProperty(config, "port", "5672")))
+          user <- Async[F].fromEither(Connector.getRequiredProperty(config, "username"))
+          pass <- Async[F].fromEither(Connector.getRequiredProperty(config, "password"))
+          exchange = Connector.getProperty(config, "offers_exchange", "trading.offers")
+          c <- RabbitMQOfferConnector.inMemory[F](host, port, user, pass, exchange).map(r => Right(r): Either[ConnectorError, OfferConnector[F]])
+        } yield c
+      // All supported cases are handled above
       case unknown =>
         Async[F].pure(Left(ConfigurationError(s"Unknown offer connector type: $unknown")))
     }
@@ -49,14 +66,42 @@ class DefaultConnectorFactory[F[_]: Async] extends ConnectorFactory[F] {
    * Creates a trade connector based on configuration
    */
   def createTradeConnector(config: ConnectorConfig): F[Either[ConnectorError, TradeConnector[F]]] = {
-    Async[F].pure(Left(ConfigurationError("Trade connectors are not supported in this build")))
+    config.connectorType.toLowerCase match {
+      case Connector.POSTGRES =>
+        createPostgresTradeConnector(config)
+      case Connector.KAFKA =>
+        for {
+          bs <- Async[F].fromEither(Connector.getRequiredProperty(config, "bootstrap_servers"))
+          topic = Connector.getProperty(config, "trades_topic", "trading-trades")
+          c <- KafkaTradeConnector.inMemory[F](bs, topic).map(r => Right(r): Either[ConnectorError, TradeConnector[F]])
+        } yield c
+      case Connector.RABBITMQ =>
+        for {
+          host <- Async[F].fromEither(Connector.getRequiredProperty(config, "host"))
+          port <- Async[F].fromEither(parsePort(Connector.getProperty(config, "port", "5672")))
+          user <- Async[F].fromEither(Connector.getRequiredProperty(config, "username"))
+          pass <- Async[F].fromEither(Connector.getRequiredProperty(config, "password"))
+          exchange = Connector.getProperty(config, "trades_exchange", "trading.trades")
+          c <- RabbitMQTradeConnector.inMemory[F](host, port, user, pass, exchange).map(r => Right(r): Either[ConnectorError, TradeConnector[F]])
+        } yield c
+      case _ => Async[F].pure(Left(ConfigurationError(s"Trade connector '${config.connectorType}' not supported in this build")))
+    }
   }
 
   /**
    * Creates a user connector based on configuration
    */
   def createUserConnector(config: ConnectorConfig): F[Either[ConnectorError, UserConnector[F]]] = {
-    Async[F].pure(Left(ConfigurationError("User connectors are not supported in this build")))
+    config.connectorType.toLowerCase match {
+      case "obp-api" =>
+        for {
+          base <- Async[F].fromEither(Connector.getRequiredProperty(config, "base_url"))
+          cid <- Async[F].fromEither(Connector.getRequiredProperty(config, "client_id"))
+          csec <- Async[F].fromEither(Connector.getRequiredProperty(config, "client_secret"))
+          c <- ObpApiUserConnector.inMemory[F](base, cid, csec).map(r => Right(r): Either[ConnectorError, UserConnector[F]])
+        } yield c
+      case _ => Async[F].pure(Left(ConfigurationError(s"User connector '${config.connectorType}' not supported in this build")))
+    }
   }
 
   // Redis connector factory methods
@@ -80,7 +125,31 @@ class DefaultConnectorFactory[F[_]: Async] extends ConnectorFactory[F] {
     } yield result
   }
 
-  // No other connector factory methods in this build
+  private def createPostgresOfferConnector(config: ConnectorConfig): F[Either[ConnectorError, OfferConnector[F]]] = {
+    Connector.getRequiredProperty(config, "url") match {
+      case Left(err) => Async[F].pure(Left(err))
+      case Right(url) =>
+        val user = Connector.getProperty(config, "username", "")
+        val pass = Connector.getProperty(config, "password", "")
+        for {
+          db <- Async[F].delay(Database.forURL(url, user, pass))
+          conn <- PostgresOfferConnector.inMemory[F](db).map(c => Right(c): Either[ConnectorError, OfferConnector[F]])
+        } yield conn
+    }
+  }
+
+  private def createPostgresTradeConnector(config: ConnectorConfig): F[Either[ConnectorError, TradeConnector[F]]] = {
+    Connector.getRequiredProperty(config, "url") match {
+      case Left(err) => Async[F].pure(Left(err))
+      case Right(url) =>
+        val user = Connector.getProperty(config, "username", "")
+        val pass = Connector.getProperty(config, "password", "")
+        for {
+          db <- Async[F].delay(Database.forURL(url, user, pass))
+          conn <- PostgresTradeConnector.inMemory[F](db).map(c => Right(c): Either[ConnectorError, TradeConnector[F]])
+        } yield conn
+    }
+  }
 
   // Helper methods
   private def parsePort(portStr: String): Either[ConnectorError, Int] = {

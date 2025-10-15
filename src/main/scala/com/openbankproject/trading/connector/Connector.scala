@@ -18,7 +18,6 @@
  */
 
 package com.openbankproject.trading.connector
-
 import com.openbankproject.trading.model._
 import java.time.Instant
 
