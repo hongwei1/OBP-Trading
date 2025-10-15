@@ -657,3 +657,47 @@ reorg.freezePolicy = "freeze-affected-accounts"
 In‑scope: limit orders; per‑trade release; single asset pair (EUR↔OGCR); manual KYC; daily reconciliation; idempotent APIs
 
 Out‑of‑scope: market orders; batch releases; multi‑asset routing; cross‑chain bridges; automated KYC providers; intraday full auto‑recon
+
+---
+
+## Matching & Order Service Contract (Supplement)
+
+### 1) CreateOrderRequest → LimitOrder mapping
+
+- Incoming: CreateOrderRequest { side, price, quantity, accountId, idempotencyKey }
+- Validation (MVP):
+  - side ∈ {BUY, SELL}
+  - price > 0, quantity > 0; precision follows asset config (EUR scale=2, OGCR scale per token)
+  - tickSize and lotSize respected (configurable); reject if not aligned
+  - accountId must be trading-enabled; user must be KYC Approved
+  - Pre-hold: EUR or OGCR moved Available→Holding before placing order
+- Mapping to matching layer:
+  - LimitOrder(orderId, Side.Buy|Sell, price, quantity, remaining=quantity, ownerAccountId=accountId, createdAt=now)
+  - OrderBookRepository.add(order) then MatchingEngine.place(order) (engine may immediately fill against resting book)
+
+### 2) MatchRequest semantics
+
+- Request: { orderId, counterOrderId, amount, price }
+- Usage (MVP): primarily internal; external callers typically only create orders. The engine handles automatic crossing.
+- Partial fills: engine produces List[Fill] where each Fill maps to a Trade via Trade.create(...)
+- For each Fill:
+  - buyer=BUY side order owner; seller=SELL side order owner
+  - Trade.price = fill.price; Trade.quantity = fill.quantity; amount = price*quantity
+  - Emit trade.created event; forward to Settlement orchestrator (preAuth→capture→release)
+
+### 3) Idempotency & Events
+
+- Idempotency-Key propagated from CreateOrderRequest into order.opened; MatchRequest carries trade-scope keys
+- Events:
+  - order.opened { orderId, side, price, quantity, ownerAccountId }
+  - order.updated/canceled { orderId, status, remaining }
+  - trade.created { tradeId, buyOrderId, sellOrderId, qty, price }
+
+### 4) Error mapping (conceptual)
+
+- InvalidInput → 400
+- InsufficientBalance/HoldFailed → 409
+- NotFound(orderId) → 404
+- Conflict(idempotency replay with different payload) → 409
+- Internal failure (engine/storage) → 500
+
