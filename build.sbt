@@ -110,8 +110,7 @@ Compile / unmanagedSources := (Compile / unmanagedSources).value.filterNot { f =
     // heavy/unfinished connectors and validation that block demo build
     "RedisOfferConnector.scala",
     "ConnectorFactory.scala",
-    "Connector.scala",
-    "validation.scala"
+    "Connector.scala"
   ).contains(n)
 }
 

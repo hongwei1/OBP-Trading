@@ -414,7 +414,15 @@ object validation {
       tradeQuantity: Quantity,
       tradePrice: Price
     ): ValidationResult[Trade] = {
-      val trade = Trade.create(buyOffer.symbol, buyOffer, sellOffer, tradePrice, tradeQuantity)
+      val trade = Trade.create(
+        createdByUserId = buyOffer.user_id,
+        consentId = buyOffer.consent_id,
+        symbol = buyOffer.symbol,
+        buyOffer = buyOffer,
+        sellOffer = sellOffer,
+        tradePrice = tradePrice,
+        tradeQuantity = tradeQuantity
+      )
       val buyAmount = tradePrice * tradeQuantity
       
       (
