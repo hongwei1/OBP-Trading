@@ -103,14 +103,7 @@ libraryDependencies ++= Seq(
   "org.testcontainers" % "postgresql" % "1.19.3" % Test
 )
 
-// Temporarily exclude problematic sources to run the demo entrypoint
-Compile / unmanagedSources := (Compile / unmanagedSources).value.filterNot { f =>
-  val n = f.getName
-  Set(
-    // heavy/unfinished connectors that block full build now
-    "ConnectorFactory.scala"
-  ).contains(n)
-}
+// (Previously excluded sources for demo-only build removed; compile all sources)
 
 // Compiler options
 scalacOptions ++= Seq(

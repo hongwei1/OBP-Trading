@@ -22,10 +22,8 @@ package com.openbankproject.trading.connector
 import cats.effect.kernel.Async
 import cats.syntax.all._
 import com.typesafe.config.Config
-import dev.profunktor.redis4cats.{Redis, RedisCommands}
+import dev.profunktor.redis4cats.Redis
 import dev.profunktor.redis4cats.effect.Log.Stdout._
-import slick.jdbc.JdbcBackend.Database
-import scala.concurrent.duration._
 
 /**
  * Factory for creating connector instances based on configuration
@@ -40,16 +38,8 @@ class DefaultConnectorFactory[F[_]: Async] extends ConnectorFactory[F] {
     config.connectorType.toLowerCase match {
       case Connector.REDIS =>
         createRedisOfferConnector(config)
-      
-      case Connector.POSTGRES =>
-        createPostgresOfferConnector(config)
-      
-      case Connector.RABBITMQ =>
-        createRabbitMQOfferConnector(config)
-        
-      case Connector.KAFKA =>
-        createKafkaOfferConnector(config)
-        
+      case Connector.POSTGRES | Connector.RABBITMQ | Connector.KAFKA =>
+        Async[F].pure(Left(ConfigurationError(s"Offer connector '${config.connectorType}' not supported in this build")))
       case unknown =>
         Async[F].pure(Left(ConfigurationError(s"Unknown offer connector type: $unknown")))
     }
@@ -59,35 +49,14 @@ class DefaultConnectorFactory[F[_]: Async] extends ConnectorFactory[F] {
    * Creates a trade connector based on configuration
    */
   def createTradeConnector(config: ConnectorConfig): F[Either[ConnectorError, TradeConnector[F]]] = {
-    config.connectorType.toLowerCase match {
-      case Connector.POSTGRES =>
-        createPostgresTradeConnector(config)
-        
-      case Connector.KAFKA =>
-        createKafkaTradeConnector(config)
-        
-      case Connector.RABBITMQ =>
-        createRabbitMQTradeConnector(config)
-        
-      case unknown =>
-        Async[F].pure(Left(ConfigurationError(s"Unknown trade connector type: $unknown")))
-    }
+    Async[F].pure(Left(ConfigurationError("Trade connectors are not supported in this build")))
   }
 
   /**
    * Creates a user connector based on configuration
    */
   def createUserConnector(config: ConnectorConfig): F[Either[ConnectorError, UserConnector[F]]] = {
-    config.connectorType.toLowerCase match {
-      case Connector.POSTGRES =>
-        createPostgresUserConnector(config)
-        
-      case "obp-api" =>
-        createObpApiUserConnector(config)
-        
-      case unknown =>
-        Async[F].pure(Left(ConfigurationError(s"Unknown user connector type: $unknown")))
-    }
+    Async[F].pure(Left(ConfigurationError("User connectors are not supported in this build")))
   }
 
   // Redis connector factory methods
@@ -111,126 +80,7 @@ class DefaultConnectorFactory[F[_]: Async] extends ConnectorFactory[F] {
     } yield result
   }
 
-  // PostgreSQL connector factory methods
-  private def createPostgresOfferConnector(config: ConnectorConfig): F[Either[ConnectorError, OfferConnector[F]]] = {
-    for {
-      url <- Async[F].fromEither(Connector.getRequiredProperty(config, "url"))
-      username <- Async[F].fromEither(Connector.getRequiredProperty(config, "username"))
-      password <- Async[F].fromEither(Connector.getRequiredProperty(config, "password"))
-      
-      result <- Async[F].delay {
-        val database = Database.forURL(url, username, password)
-        val connector = new PostgresOfferConnector[F](database)
-        Right(connector)
-      }.handleError(error => Left(ConnectionError(s"Failed to create PostgreSQL connector: ${error.getMessage}", Some(error))))
-      
-    } yield result
-  }
-
-  private def createPostgresTradeConnector(config: ConnectorConfig): F[Either[ConnectorError, TradeConnector[F]]] = {
-    for {
-      url <- Async[F].fromEither(Connector.getRequiredProperty(config, "url"))
-      username <- Async[F].fromEither(Connector.getRequiredProperty(config, "username"))
-      password <- Async[F].fromEither(Connector.getRequiredProperty(config, "password"))
-      
-      result <- Async[F].delay {
-        val database = Database.forURL(url, username, password)
-        val connector = new PostgresTradeConnector[F](database)
-        Right(connector)
-      }.handleError(error => Left(ConnectionError(s"Failed to create PostgreSQL trade connector: ${error.getMessage}", Some(error))))
-      
-    } yield result
-  }
-
-  private def createPostgresUserConnector(config: ConnectorConfig): F[Either[ConnectorError, UserConnector[F]]] = {
-    for {
-      url <- Async[F].fromEither(Connector.getRequiredProperty(config, "url"))
-      username <- Async[F].fromEither(Connector.getRequiredProperty(config, "username"))
-      password <- Async[F].fromEither(Connector.getRequiredProperty(config, "password"))
-      
-      result <- Async[F].delay {
-        val database = Database.forURL(url, username, password)
-        val connector = new PostgresUserConnector[F](database)
-        Right(connector)
-      }.handleError(error => Left(ConnectionError(s"Failed to create PostgreSQL user connector: ${error.getMessage}", Some(error))))
-      
-    } yield result
-  }
-
-  // RabbitMQ connector factory methods
-  private def createRabbitMQOfferConnector(config: ConnectorConfig): F[Either[ConnectorError, OfferConnector[F]]] = {
-    for {
-      host <- Async[F].fromEither(Connector.getRequiredProperty(config, "host"))
-      port <- Async[F].fromEither(parsePort(config.properties.getOrElse("port", "5672")))
-      username <- Async[F].fromEither(Connector.getRequiredProperty(config, "username"))
-      password <- Async[F].fromEither(Connector.getRequiredProperty(config, "password"))
-      exchange = config.properties.getOrElse("offers_exchange", "trading.offers")
-      
-      result <- Async[F].delay {
-        val connector = new RabbitMQOfferConnector[F](host, port, username, password, exchange)
-        Right(connector)
-      }.handleError(error => Left(ConnectionError(s"Failed to create RabbitMQ connector: ${error.getMessage}", Some(error))))
-      
-    } yield result
-  }
-
-  private def createRabbitMQTradeConnector(config: ConnectorConfig): F[Either[ConnectorError, TradeConnector[F]]] = {
-    for {
-      host <- Async[F].fromEither(Connector.getRequiredProperty(config, "host"))
-      port <- Async[F].fromEither(parsePort(config.properties.getOrElse("port", "5672")))
-      username <- Async[F].fromEither(Connector.getRequiredProperty(config, "username"))
-      password <- Async[F].fromEither(Connector.getRequiredProperty(config, "password"))
-      exchange = config.properties.getOrElse("trades_exchange", "trading.trades")
-      
-      result <- Async[F].delay {
-        val connector = new RabbitMQTradeConnector[F](host, port, username, password, exchange)
-        Right(connector)
-      }.handleError(error => Left(ConnectionError(s"Failed to create RabbitMQ trade connector: ${error.getMessage}", Some(error))))
-      
-    } yield result
-  }
-
-  // Kafka connector factory methods
-  private def createKafkaOfferConnector(config: ConnectorConfig): F[Either[ConnectorError, OfferConnector[F]]] = {
-    for {
-      bootstrapServers <- Async[F].fromEither(Connector.getRequiredProperty(config, "bootstrap_servers"))
-      topic = config.properties.getOrElse("offers_topic", "trading-offers")
-      
-      result <- Async[F].delay {
-        val connector = new KafkaOfferConnector[F](bootstrapServers, topic)
-        Right(connector)
-      }.handleError(error => Left(ConnectionError(s"Failed to create Kafka connector: ${error.getMessage}", Some(error))))
-      
-    } yield result
-  }
-
-  private def createKafkaTradeConnector(config: ConnectorConfig): F[Either[ConnectorError, TradeConnector[F]]] = {
-    for {
-      bootstrapServers <- Async[F].fromEither(Connector.getRequiredProperty(config, "bootstrap_servers"))
-      topic = config.properties.getOrElse("trades_topic", "trading-trades")
-      
-      result <- Async[F].delay {
-        val connector = new KafkaTradeConnector[F](bootstrapServers, topic)
-        Right(connector)
-      }.handleError(error => Left(ConnectionError(s"Failed to create Kafka trade connector: ${error.getMessage}", Some(error))))
-      
-    } yield result
-  }
-
-  // OBP API connector factory methods
-  private def createObpApiUserConnector(config: ConnectorConfig): F[Either[ConnectorError, UserConnector[F]]] = {
-    for {
-      baseUrl <- Async[F].fromEither(Connector.getRequiredProperty(config, "base_url"))
-      clientId <- Async[F].fromEither(Connector.getRequiredProperty(config, "client_id"))
-      clientSecret <- Async[F].fromEither(Connector.getRequiredProperty(config, "client_secret"))
-      
-      result <- Async[F].delay {
-        val connector = new ObpApiUserConnector[F](baseUrl, clientId, clientSecret)
-        Right(connector)
-      }.handleError(error => Left(ConnectionError(s"Failed to create OBP API connector: ${error.getMessage}", Some(error))))
-      
-    } yield result
-  }
+  // No other connector factory methods in this build
 
   // Helper methods
   private def parsePort(portStr: String): Either[ConnectorError, Int] = {
@@ -288,27 +138,6 @@ object ConnectorFactories {
           "host" -> host,
           "port" -> port.toString,
           "database" -> database.toString
-        )
-      )
-    }
-    
-    def postgresTradeConnector(url: String, username: String, password: String): ConnectorConfig = {
-      ConnectorConfig(
-        connectorType = Connector.POSTGRES,
-        properties = Map(
-          "url" -> url,
-          "username" -> username,
-          "password" -> password
-        )
-      )
-    }
-    
-    def kafkaConnector(bootstrapServers: String, topic: String): ConnectorConfig = {
-      ConnectorConfig(
-        connectorType = Connector.KAFKA,
-        properties = Map(
-          "bootstrap_servers" -> bootstrapServers,
-          "topic" -> topic
         )
       )
     }
