@@ -39,7 +39,22 @@
           "raw": "{\n  \"offer_type\": \"buy\",\n  \"asset_code\": \"OGCR\",\n  \"asset_amount\": \"10\",\n  \"price_currency\": \"EUR\",\n  \"price_amount\": \"25\",\n  \"settlement_account_id\": \"buyer-fiat-account\"\n}"
         },
         "url": "{{baseUrl}}/obp/v7.0.0/banks/{{bankId}}/accounts/{{accountId}}/views/{{viewId}}/trading/offers"
-      }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let res;",
+              "try { res = pm.response.json(); } catch (e) { res = null; }",
+              "if (pm.response.code === 201 && res && res.orderId) {",
+              "  pm.environment.set('offerId', res.orderId);",
+              "}"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "OBP Get Offer",
