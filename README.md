@@ -57,9 +57,9 @@ git clone https://github.com/OpenBankProject/OBP-Trading
 cd OBP-Trading
 sbt compile
 
-# Configure
+# Configure connectors
 cp src/main/resources/application.conf.example src/main/resources/application.conf
-# Edit database and OBP-API settings
+# Edit connector sections (offer/trade/user) and OBP-API credentials
 
 # Run (when ready)
 sbt run
@@ -68,17 +68,20 @@ sbt run
 ## Configuration
 
 ```hocon
-# OBP Integration
-obp.api.baseUrl = "https://api.openbankproject.com"
-obp.auth.jwtPublicKeyUrl = "https://api.openbankproject.com/.well-known/jwks.json"
-
-# Connectors
+// See src/main/resources/application.conf.example for a full example.
 connectors {
-  offer.type = "redis"     # Fast offer storage
-  trade.type = "postgres"  # Persistent trade records  
-  user.type = "obp-api"    # OBP user integration
+  offer { type = "redis" host = "127.0.0.1" port = 6379 database = 0 }
+  trade { type = "postgres" url = "jdbc:postgresql://127.0.0.1:5432/obptrading" username = "postgres" password = "postgres" }
+  user  { type = "obp-api" base_url = "https://api.openbankproject.com" client_id = "CHANGE_ME" client_secret = "CHANGE_ME" }
 }
 ```
+
+### Connector types and required keys
+- Redis offer: type=redis, host, port, database, [password]
+- Postgres trade: type=postgres, url, username, password
+- Kafka: type=kafka, bootstrap_servers, [offers_topic|trades_topic]
+- RabbitMQ: type=rabbitmq, host, port, username, password, [offers_exchange|trades_exchange]
+- OBP-API user: type=obp-api, base_url, client_id, client_secret
 
 ## Development
 

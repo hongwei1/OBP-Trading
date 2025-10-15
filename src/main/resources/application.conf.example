@@ -1,0 +1,49 @@
+// Example configuration for OBP-Trading
+// Copy to application.conf and adjust values for your environment
+
+obp {
+  api {
+    base_url = "https://api.openbankproject.com" // OBP-API base URL
+    client_id = "CHANGE_ME"
+    client_secret = "CHANGE_ME"
+  }
+}
+
+connectors {
+  // Offer connector options: redis | postgres | kafka | rabbitmq
+  offer {
+    type = "redis"
+    host = "127.0.0.1"
+    port = 6379
+    database = 0
+    // password = ""
+  }
+
+  // Trade connector options: postgres | kafka | rabbitmq
+  trade {
+    type = "postgres"
+    url = "jdbc:postgresql://127.0.0.1:5432/obptrading"
+    username = "postgres"
+    password = "postgres"
+    // For kafka: bootstrap_servers, trades_topic
+    // For rabbitmq: host, port, username, password, trades_exchange
+  }
+
+  // User connector options: obp-api
+  user {
+    type = "obp-api"
+    base_url = ${obp.api.base_url}
+    client_id = ${obp.api.client_id}
+    client_secret = ${obp.api.client_secret}
+  }
+}
+
+// Kafka example
+// connectors.offer { type = "kafka" bootstrap_servers = "localhost:9092" offers_topic = "trading-offers" }
+// connectors.trade { type = "kafka" bootstrap_servers = "localhost:9092" trades_topic = "trading-trades" }
+
+// RabbitMQ example
+// connectors.offer { type = "rabbitmq" host = "localhost" port = 5672 username = "guest" password = "guest" offers_exchange = "trading.offers" }
+// connectors.trade { type = "rabbitmq" host = "localhost" port = 5672 username = "guest" password = "guest" trades_exchange = "trading.trades" }
+
+
