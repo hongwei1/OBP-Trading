@@ -1,0 +1,181 @@
+{
+  "info": {
+    "name": "OBP-Trading API",
+    "_postman_id": "d9b3b5f5-4b3e-4f0a-94ad-5bcd5e58e111",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "0.1.0"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.environment.set('timestamp', Date.now().toString());"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "console.log('Status:', pm.response.code);"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "OBP Create Offer",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"offer_type\": \"buy\",\n  \"asset_code\": \"OGCR\",\n  \"asset_amount\": \"10\",\n  \"price_currency\": \"EUR\",\n  \"price_amount\": \"25\",\n  \"settlement_account_id\": \"buyer-fiat-account\"\n}"
+        },
+        "url": "{{baseUrl}}/obp/v7.0.0/banks/{{bankId}}/accounts/{{accountId}}/views/{{viewId}}/trading/offers"
+      }
+    },
+    {
+      "name": "OBP Get Offer",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "url": "{{baseUrl}}/obp/v7.0.0/banks/{{bankId}}/accounts/{{accountId}}/views/{{viewId}}/trading/offers/{{offerId}}"
+      }
+    },
+    {
+      "name": "OBP Cancel Offer",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "url": "{{baseUrl}}/obp/v7.0.0/banks/{{bankId}}/accounts/{{accountId}}/views/{{viewId}}/trading/offers/{{offerId}}"
+      }
+    },
+    {
+      "name": "Create Order",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"side\": \"BUY\",\n  \"price\": 25.0,\n  \"quantity\": 10.0,\n  \"accountId\": \"buyer-fiat-account\",\n  \"idempotencyKey\": \"order-{{timestamp}}\"\n}"
+        },
+        "url": "{{baseUrl}}/market/orders"
+      }
+    },
+    {
+      "name": "Cancel Order",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "url": "{{baseUrl}}/market/orders/{{orderId}}"
+      }
+    },
+    {
+      "name": "Get Order",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "url": "{{baseUrl}}/market/orders/{{orderId}}"
+      }
+    },
+    {
+      "name": "Create Match",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"counterOrderId\": \"{{counterOrderId}}\",\n  \"amount\": 10.0,\n  \"price\": 25.0\n}"
+        },
+        "url": "{{baseUrl}}/market/matches"
+      }
+    },
+    {
+      "name": "Request Settlement",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"tradeId\": \"{{tradeId}}\",\n  \"step\": null\n}"
+        },
+        "url": "{{baseUrl}}/market/settlements"
+      }
+    },
+    {
+      "name": "Get Trade",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "url": "{{baseUrl}}/market/trades/{{tradeId}}"
+      }
+    },
+    {
+      "name": "Notify Deposit",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"txHash\": \"0xabc\",\n  \"from\": \"0xfrom\",\n  \"to\": \"0xto\",\n  \"amount\": 100.0,\n  \"confirmations\": 3\n}"
+        },
+        "url": "{{baseUrl}}/market/deposits"
+      }
+    },
+    {
+      "name": "Request Withdrawal",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"accountId\": \"seller-token-account\",\n  \"amount\": 5.0,\n  \"address\": \"0xrecipient\",\n  \"idempotencyKey\": \"withdraw-{{timestamp}}\"\n}"
+        },
+        "url": "{{baseUrl}}/market/withdrawals"
+      }
+    }
+  ],
+  "variable": [
+    { "key": "orderId", "value": "123", "type": "string" },
+    { "key": "counterOrderId", "value": "456", "type": "string" },
+    { "key": "tradeId", "value": "abc", "type": "string" },
+    { "key": "bankId", "value": "bank-1", "type": "string" },
+    { "key": "accountId", "value": "acc-1", "type": "string" },
+    { "key": "viewId", "value": "owner", "type": "string" },
+    { "key": "offerId", "value": "offer-1", "type": "string" }
+  ]
+}
+
+

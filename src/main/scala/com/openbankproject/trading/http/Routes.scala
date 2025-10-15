@@ -5,6 +5,11 @@ import org.http4s.dsl.Http4sDsl
 import cats.effect.Async
 import cats.syntax.all._
 import com.openbankproject.trading.service._
+import org.http4s.circe.CirceEntityCodec._
+import io.circe.generic.auto._
+import io.circe.parser.parse
+import java.util.UUID
+import scala.util.Try
 
 /** Aggregated HTTP routes (interfaces only, no concrete wiring). */
 object Routes {
@@ -17,17 +22,31 @@ object Routes {
     val dsl = new Http4sDsl[F] {}; import dsl._
 
     HttpRoutes.of[F] {
+      // ========== Minimal market endpoints (internal shape) ==========
       // POST /market/orders
       case req @ POST -> Root / "market" / "orders" =>
-        Async[F].pure(Response[F](status = Status.NotImplemented))
+        req.attemptAs[CreateOrderRequest].value.flatMap {
+          case Left(df) => BadRequest(ErrorResponse("bad_request", Option(df.getMessage).getOrElse(df.toString)))
+          case Right(payload) =>
+            order.createOrder(payload).flatMap {
+              case Right(ok)  => Created(ok)
+              case Left(err)  => BadRequest(err)
+            }
+        }
 
       // DELETE /market/orders/{id}
       case DELETE -> Root / "market" / "orders" / orderId =>
-        Async[F].pure(Response[F](status = Status.NotImplemented))
+        order.cancelOrder(orderId).flatMap {
+          case Right(ok) => Ok(ok)
+          case Left(err) => BadRequest(err)
+        }
 
       // GET /market/orders/{id}
       case GET -> Root / "market" / "orders" / orderId =>
-        Async[F].pure(Response[F](status = Status.NotImplemented))
+        order.getOrder(orderId).flatMap {
+          case Right(v)  => Ok(v)
+          case Left(err) => NotFound(err)
+        }
 
       // POST /market/matches
       case req @ POST -> Root / "market" / "matches" =>
@@ -48,6 +67,61 @@ object Routes {
       // POST /market/withdrawals
       case req @ POST -> Root / "market" / "withdrawals" =>
         Async[F].pure(Response[F](status = Status.NotImplemented))
+
+      // ========== OBP-style Offer endpoints (map to OrderService) ==========
+      // POST /obp/v7.0.0/banks/BANK_ID/accounts/ACCOUNT_ID/views/VIEW_ID/trading/offers
+      case req @ POST -> Root / "obp" / "v7.0.0" / "banks" / bankId / "accounts" / accountId / "views" / viewId / "trading" / "offers" =>
+        // Minimal body mapping based on trading-api-endpoints.md
+        case class ObpCreateOfferReq(
+          offer_type: String,
+          asset_code: String,
+          asset_amount: String,
+          price_currency: String,
+          price_amount: String,
+          expiry_datetime: Option[String],
+          minimum_fill: Option[String],
+          settlement_account_id: String
+        )
+        req.bodyText.compile.string.flatMap { raw =>
+          parse(raw).leftMap(_.getMessage).flatMap(_.as[ObpCreateOfferReq].leftMap(_.getMessage)) match {
+            case Left(msg) => BadRequest(ErrorResponse("bad_request", s"Invalid JSON: $msg"))
+            case Right(obp) =>
+              val side  = obp.offer_type.toUpperCase match {
+                case "BUY"  => "BUY"
+                case "SELL" => "SELL"
+                case other   => other
+              }
+              val qty   = Try(BigDecimal(obp.asset_amount)).getOrElse(BigDecimal(0))
+              val price = Try(BigDecimal(obp.price_amount)).getOrElse(BigDecimal(0))
+              val acct  = Option(obp.settlement_account_id).filter(_.nonEmpty).getOrElse(accountId)
+              val idKey = s"obp-${UUID.randomUUID().toString}"
+              val req0  = CreateOrderRequest(
+                side = side,
+                price = price,
+                quantity = qty,
+                accountId = acct,
+                idempotencyKey = idKey
+              )
+              order.createOrder(req0).flatMap {
+                case Right(ok)  => Created(ok)
+                case Left(err)  => BadRequest(err)
+              }
+          }
+        }
+
+      // GET /obp/v7.0.0/banks/BANK_ID/accounts/ACCOUNT_ID/views/VIEW_ID/trading/offers/OFFER_ID
+      case GET -> Root / "obp" / "v7.0.0" / "banks" / bankId / "accounts" / accountId / "views" / viewId / "trading" / "offers" / offerId =>
+        order.getOrder(offerId).flatMap {
+          case Right(v)  => Ok(v)
+          case Left(err) => NotFound(err)
+        }
+
+      // DELETE /obp/v7.0.0/banks/BANK_ID/accounts/ACCOUNT_ID/views/VIEW_ID/trading/offers/OFFER_ID
+      case DELETE -> Root / "obp" / "v7.0.0" / "banks" / bankId / "accounts" / accountId / "views" / viewId / "trading" / "offers" / offerId =>
+        order.cancelOrder(offerId).flatMap {
+          case Right(ok) => Ok(ok)
+          case Left(err) => BadRequest(err)
+        }
     }
   }
 }
