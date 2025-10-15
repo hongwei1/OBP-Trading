@@ -19,12 +19,8 @@
 
 package com.openbankproject.trading.connector
 
-import cats.effect.kernel.Async
-import com.openbankproject.commons.model.{User, Bank, BankAccount}
 import com.openbankproject.trading.model._
-import io.circe.Json
 import java.time.Instant
-import java.util.UUID
 
 /**
  * Base trait for all trading connectors
@@ -88,9 +84,9 @@ trait TradeConnector[F[_]] extends Connector[F] {
 trait UserConnector[F[_]] extends Connector[F] {
   
   // User operations
-  def getUser(userId: UserId): F[Either[ConnectorError, Option[User]]]
-  def getUserByEmail(email: String): F[Either[ConnectorError, Option[User]]]
-  def getUserAccounts(userId: UserId): F[Either[ConnectorError, List[BankAccount]]]
+  def getUser(userId: UserId): F[Either[ConnectorError, Option[UserSummary]]]
+  def getUserByEmail(email: String): F[Either[ConnectorError, Option[UserSummary]]]
+  def getUserAccounts(userId: UserId): F[Either[ConnectorError, List[AccountSummary]]]
   
   // Trading profile operations
   def getUserTradingProfile(userId: UserId): F[Either[ConnectorError, Option[TradingProfile]]]
@@ -100,6 +96,10 @@ trait UserConnector[F[_]] extends Connector[F] {
   def canUserTrade(userId: UserId, symbol: TradingSymbol): F[Either[ConnectorError, Boolean]]
   def getUserTradingPermissions(userId: UserId): F[Either[ConnectorError, List[TradingPermission]]]
 }
+
+// Minimal summaries to avoid depending on external OBP Commons at compile time
+final case class UserSummary(userId: UserId, email: Option[String] = None)
+final case class AccountSummary(accountId: AccountId, bankId: BankId, currency: String)
 
 /**
  * Connector status information

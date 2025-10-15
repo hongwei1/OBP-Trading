@@ -107,10 +107,9 @@ libraryDependencies ++= Seq(
 Compile / unmanagedSources := (Compile / unmanagedSources).value.filterNot { f =>
   val n = f.getName
   Set(
-    // heavy/unfinished connectors and validation that block demo build
-    "RedisOfferConnector.scala",
+    // heavy/unfinished connectors that block full build now
     "ConnectorFactory.scala",
-    "Connector.scala"
+    "RedisOfferConnector.scala"
   ).contains(n)
 }
 
