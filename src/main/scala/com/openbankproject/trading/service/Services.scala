@@ -8,6 +8,12 @@ trait OrderService[F[_]] {
   def getOrder(orderId: String): F[Either[ErrorResponse, OrderView]]
 }
 
+trait OfferService[F[_]] {
+  def createOffer(req: CreateOfferRequest): F[Either[ErrorResponse, CreateOfferResponse]]
+  def cancelOffer(offerId: String): F[Either[ErrorResponse, CancelOfferResponse]]
+  def getOffer(offerId: String): F[Either[ErrorResponse, OfferView]]
+}
+
 trait MatchService[F[_]] {
   def createMatch(req: MatchRequest): F[Either[ErrorResponse, CreateMatchResponse]]
 }

@@ -14,6 +14,8 @@ import com.comcast.ip4s._
 object HttpServerMain extends IOApp.Simple {
 
   private val orderServiceIO: IO[OrderService[IO]] = InMemoryOrderService.create[IO]()
+  
+  private val offerServiceIO: IO[OfferService[IO]] = InMemoryOfferService.create[IO]()
 
   private val matchService: MatchService[IO] = new MatchService[IO] {
     def createMatch(req: MatchRequest) = IO.pure(Left(ErrorResponse("not_implemented", "createMatch not implemented")))
@@ -31,8 +33,9 @@ object HttpServerMain extends IOApp.Simple {
 
   override def run: IO[Unit] =
     for {
+      offerService <- offerServiceIO
       orderService <- orderServiceIO
-      apiRoutes = Routes.api[IO](orderService, matchService, settlementService, fundsService)
+      apiRoutes = Routes.api[IO](orderService, offerService, matchService, settlementService, fundsService)
       httpApp   = Router("/" -> apiRoutes).orNotFound
       _ <- EmberServerBuilder
         .default[IO]

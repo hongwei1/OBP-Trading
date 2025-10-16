@@ -12,6 +12,15 @@ final case class CreateOrderRequest(
   idempotencyKey: String
 )
 
+// Offer-specific request/response models
+final case class CreateOfferRequest(
+  offerType: String,            // "BUY" | "SELL"
+  price: BigDecimal,
+  quantity: BigDecimal,
+  accountId: String,
+  idempotencyKey: String
+)
+
 final case class MatchRequest(
   orderId: String,
   counterOrderId: String,
@@ -47,10 +56,25 @@ final case class SettlementResponse(tradeId: String, status: String)
 final case class DepositResponse(credited: Boolean, externalId: String)
 final case class WithdrawalResponse(onChainTxId: String, state: String)
 
+final case class CreateOfferResponse(offerId: String, status: String, remaining: BigDecimal)
+final case class CancelOfferResponse(offerId: String, status: String)
+
 // Views
 final case class OrderView(
   orderId: String,
   side: String,
+  price: BigDecimal,
+  quantity: BigDecimal,
+  remaining: BigDecimal,
+  status: String,
+  ownerAccountId: String,
+  createdAt: Instant,
+  expiresAt: Option[Instant]
+)
+
+final case class OfferView(
+  offerId: String,
+  offerType: String,
   price: BigDecimal,
   quantity: BigDecimal,
   remaining: BigDecimal,

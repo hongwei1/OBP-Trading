@@ -15,6 +15,7 @@ import scala.util.Try
 object Routes {
   def api[F[_]: Async](
     order: OrderService[F],
+    offer: OfferService[F],
     matcher: MatchService[F],
     settlement: SettlementService[F],
     funds: FundsService[F]
@@ -68,7 +69,7 @@ object Routes {
       case req @ POST -> Root / "market" / "withdrawals" =>
         Async[F].pure(Response[F](status = Status.NotImplemented))
 
-      // ========== OBP-style Offer endpoints (map to OrderService) ==========
+      // ========== OBP-style Offer endpoints (map to OfferService) ==========
       // POST /obp/v7.0.0/banks/BANK_ID/accounts/ACCOUNT_ID/views/VIEW_ID/trading/offers
       case req @ POST -> Root / "obp" / "v7.0.0" / "banks" / bankId / "accounts" / accountId / "views" / viewId / "trading" / "offers" =>
         // Minimal body mapping based on trading-api-endpoints.md
@@ -95,14 +96,14 @@ object Routes {
               val price = Try(BigDecimal(obp.price_amount)).getOrElse(BigDecimal(0))
               val acct  = Option(obp.settlement_account_id).filter(_.nonEmpty).getOrElse(accountId)
               val idKey = s"obp-${UUID.randomUUID().toString}"
-              val req0  = CreateOrderRequest(
-                side = side,
+              val req0  = CreateOfferRequest(
+                offerType = side,
                 price = price,
                 quantity = qty,
                 accountId = acct,
                 idempotencyKey = idKey
               )
-              order.createOrder(req0).flatMap {
+              offer.createOffer(req0).flatMap {
                 case Right(ok)  => Created(ok)
                 case Left(err)  => BadRequest(err)
               }
@@ -111,14 +112,14 @@ object Routes {
 
       // GET /obp/v7.0.0/banks/BANK_ID/accounts/ACCOUNT_ID/views/VIEW_ID/trading/offers/OFFER_ID
       case GET -> Root / "obp" / "v7.0.0" / "banks" / bankId / "accounts" / accountId / "views" / viewId / "trading" / "offers" / offerId =>
-        order.getOrder(offerId).flatMap {
+        offer.getOffer(offerId).flatMap {
           case Right(v)  => Ok(v)
           case Left(err) => NotFound(err)
         }
 
       // DELETE /obp/v7.0.0/banks/BANK_ID/accounts/ACCOUNT_ID/views/VIEW_ID/trading/offers/OFFER_ID
       case DELETE -> Root / "obp" / "v7.0.0" / "banks" / bankId / "accounts" / accountId / "views" / viewId / "trading" / "offers" / offerId =>
-        order.cancelOrder(offerId).flatMap {
+        offer.cancelOffer(offerId).flatMap {
           case Right(ok) => Ok(ok)
           case Left(err) => BadRequest(err)
         }
