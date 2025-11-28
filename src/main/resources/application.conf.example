@@ -1,6 +1,11 @@
 // Example configuration for OBP-Trading
 // Copy to application.conf and adjust values for your environment
 
+server {
+  host = "0.0.0.0" // HTTP server host
+  port = "8086"    // HTTP server port
+}
+
 obp {
   api {
     base_url = "https://api.openbankproject.com" // OBP-API base URL

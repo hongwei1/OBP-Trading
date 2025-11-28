@@ -141,3 +141,4 @@ build/
 .specstory
 metals.sbt
 .bsp/sbt.json
+*.conf

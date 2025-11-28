@@ -6,6 +6,7 @@ import org.http4s.server.Router
 import org.http4s.implicits._
 import org.http4s.ember.server.EmberServerBuilder
 import com.comcast.ip4s._
+import com.typesafe.config.ConfigFactory
 
 /**
   * Minimal http4s server that mounts Routes.api with placeholder services.
@@ -33,14 +34,19 @@ object HttpServerMain extends IOApp.Simple {
 
   override def run: IO[Unit] =
     for {
+      config <- IO(ConfigFactory.load())
+      serverHost = config.getString("server.host")
+      serverPort = config.getString("server.port").toInt
       offerService <- offerServiceIO
       orderService <- orderServiceIO
       apiRoutes = Routes.api[IO](orderService, offerService, matchService, settlementService, fundsService)
       httpApp   = Router("/" -> apiRoutes).orNotFound
+      host <- IO.fromOption(Host.fromString(serverHost))(new IllegalArgumentException(s"Invalid host: $serverHost"))
+      port <- IO.fromOption(Port.fromInt(serverPort))(new IllegalArgumentException(s"Invalid port: $serverPort"))
       _ <- EmberServerBuilder
         .default[IO]
-        .withHost(ipv4"0.0.0.0")
-        .withPort(port"8080")
+        .withHost(host)
+        .withPort(port)
         .withHttpApp(httpApp)
         .build
         .useForever
