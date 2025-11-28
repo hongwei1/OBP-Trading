@@ -19,17 +19,17 @@ object HttpServerMain extends IOApp.Simple {
   private val offerServiceIO: IO[OfferService[IO]] = InMemoryOfferService.create[IO]()
 
   private val matchService: MatchService[IO] = new MatchService[IO] {
-    def createMatch(req: MatchRequest) = IO.pure(Left(ErrorResponse("not_implemented", "createMatch not implemented")))
+    def createMatch(req: MatchRequest) = IO.pure(Left(ErrorResponse(ErrorCodes.NOT_IMPLEMENTED, "createMatch not implemented")))
   }
 
   private val settlementService: SettlementService[IO] = new SettlementService[IO] {
-    def settle(req: SettlementRequest) = IO.pure(Left(ErrorResponse("not_implemented", "settle not implemented")))
-    def getTrade(tradeId: String) = IO.pure(Left(ErrorResponse("not_implemented", "getTrade not implemented")))
+    def settle(req: SettlementRequest) = IO.pure(Left(ErrorResponse(ErrorCodes.NOT_IMPLEMENTED, "settle not implemented")))
+    def getTrade(tradeId: String) = IO.pure(Left(ErrorResponse(ErrorCodes.NOT_IMPLEMENTED, "getTrade not implemented")))
   }
 
   private val fundsService: FundsService[IO] = new FundsService[IO] {
-    def notifyDeposit(req: DepositNotification) = IO.pure(Left(ErrorResponse("not_implemented", "notifyDeposit not implemented")))
-    def requestWithdrawal(req: WithdrawalRequest) = IO.pure(Left(ErrorResponse("not_implemented", "requestWithdrawal not implemented")))
+    def notifyDeposit(req: DepositNotification) = IO.pure(Left(ErrorResponse(ErrorCodes.NOT_IMPLEMENTED, "notifyDeposit not implemented")))
+    def requestWithdrawal(req: WithdrawalRequest) = IO.pure(Left(ErrorResponse(ErrorCodes.NOT_IMPLEMENTED, "requestWithdrawal not implemented")))
   }
 
   override def run: IO[Unit] =

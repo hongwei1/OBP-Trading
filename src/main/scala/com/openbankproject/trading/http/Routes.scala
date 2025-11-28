@@ -34,7 +34,7 @@ object Routes {
         )
         req.bodyText.compile.string.flatMap { raw =>
           parse(raw).leftMap(_.getMessage).flatMap(_.as[ObpCreateOfferReq].leftMap(_.getMessage)) match {
-            case Left(msg) => BadRequest(ErrorResponse("bad_request", s"Invalid JSON: $msg"))
+            case Left(msg) => BadRequest(ErrorResponse(ErrorCodes.INVALID_JSON, s"Invalid JSON: $msg"))
             case Right(obp) =>
               val side  = obp.offer_type.toUpperCase match {
                 case "BUY"  => "BUY"
@@ -68,7 +68,7 @@ object Routes {
       // POST /market/orders
       case req @ POST -> Root / "market" / "orders" =>
         req.attemptAs[CreateOrderRequest].value.flatMap {
-          case Left(df) => BadRequest(ErrorResponse("bad_request", Option(df.getMessage).getOrElse(df.toString)))
+          case Left(df) => BadRequest(ErrorResponse(ErrorCodes.BAD_REQUEST, Option(df.getMessage).getOrElse(df.toString)))
           case Right(payload) =>
             order.createOrder(payload).flatMap {
               case Right(ok)  => Created(ok)
@@ -171,8 +171,8 @@ object Routes {
         |}""".stripMargin
     ),
     errorResponses = List(
-      ErrorDoc(code = "not_found", httpStatus = 404, message = Some("Offer not found")),
-      ErrorDoc(code = "bad_request", httpStatus = 400, message = Some("Invalid parameters"))
+      ErrorDoc(code = ErrorCodes.NOT_FOUND, httpStatus = 404, message = Some("Offer not found")),
+      ErrorDoc(code = ErrorCodes.BAD_REQUEST, httpStatus = 400, message = Some("Invalid parameters"))
     )
   )
     

@@ -4,6 +4,7 @@ import cats.effect.kernel.Async
 import cats.effect.Ref
 import cats.syntax.all._
 import com.openbankproject.trading.http._
+import com.openbankproject.trading.http.ErrorCodes
 
 import java.time.Instant
 import java.util.UUID
@@ -38,7 +39,7 @@ final class InMemoryOfferService[F[_]: Async] private (
           val updated = o.copy(status = "cancelled")
           (m.updated(offerId, updated), Right(CancelOfferResponse(offerId, updated.status)))
         case None =>
-          (m, Left(ErrorResponse("not_found", s"Offer $offerId not found")))
+          (m, Left(ErrorResponse(ErrorCodes.NOT_FOUND, s"Offer $offerId not found")))
       }
     }
   }
@@ -58,7 +59,7 @@ final class InMemoryOfferService[F[_]: Async] private (
             createdAt = o.createdAt,
             expiresAt = o.expiresAt
           ))
-        case None => Left(ErrorResponse("not_found", s"Offer $offerId not found"))
+        case None => Left(ErrorResponse(ErrorCodes.NOT_FOUND, s"Offer $offerId not found"))
       }
     }
   }
