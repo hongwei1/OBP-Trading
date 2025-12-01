@@ -140,17 +140,80 @@ object Routes {
     }
   }
 
+  // Helper case classes for ResourceDoc examples
+  private final case class ObpOfferExecutionExample(
+    execution_id: String,
+    executed_amount: String,
+    executed_price: String,
+    executed_at: String,
+    counterpart_offer_id: String
+  )
+  private final case class ObpOfferDetailsExample(
+    offer_type: String,
+    asset_code: String,
+    asset_amount: String,
+    filled_amount: String,
+    remaining_amount: String,
+    price_currency: String,
+    price_amount: String,
+    expiry_datetime: String,
+    minimum_fill: String
+  )
+  private final case class ObpOfferAccountInfoExample(
+    bank_id: String,
+    account_id: String,
+    view_id: String
+  )
+  private final case class ObpOfferResponseExample(
+    offer_id: String,
+    status: String,
+    created_at: String,
+    updated_at: String,
+    offer_details: ObpOfferDetailsExample,
+    account_info: ObpOfferAccountInfoExample,
+    executions: List[ObpOfferExecutionExample]
+  )
   // ResourceDoc for: GET /obp/v7.0.0/.../trading/offers/{OFFER_ID}
   def getOfferDoc(offer: OfferService): ResourceDoc = ResourceDoc(
     partialFunction = getOfferPF(offer),
-    implementedInApiVersion = "v7.0.0",
+    implementedInApiVersion = "OBPv7.0.0",
     partialFunctionName = "getOfferPF",
     requestVerb = "GET",
     requestUrl = "/obp/v7.0.0/banks/{BANK_ID}/accounts/{ACCOUNT_ID}/views/{VIEW_ID}/trading/offers/{OFFER_ID}",
-    summary = "Get OBP trading offer by id",
+    summary = "Get trading offer by id",
     description = "Returns the trading offer details by id for the given bank/account/view.",
     exampleRequestBody = EmptyBody,
-    successResponseBody = EmptyBody,
+    successResponseBody = ObpOfferResponseExample(
+      offer_id = "offer_789",
+      status = "active",
+      created_at = "2024-01-15T10:30:00Z",
+      updated_at = "2024-01-15T10:30:00Z",
+      offer_details = ObpOfferDetailsExample(
+        offer_type = "buy",
+        asset_code = "BTC",
+        asset_amount = "1.5",
+        filled_amount = "0.3",
+        remaining_amount = "1.2",
+        price_currency = "USD",
+        price_amount = "45000.00",
+        expiry_datetime = "2024-12-31T23:59:59Z",
+        minimum_fill = "0.1"
+      ),
+      account_info = ObpOfferAccountInfoExample(
+        bank_id = "BANK_ID",
+        account_id = "ACCOUNT_ID",
+        view_id = "VIEW_ID"
+      ),
+      executions = List(
+        ObpOfferExecutionExample(
+          execution_id = "exec_123",
+          executed_amount = "0.3",
+          executed_price = "45000.00",
+          executed_at = "2024-01-15T11:00:00Z",
+          counterpart_offer_id = "offer_456"
+        )
+      )
+    ),
     errorResponseBodies = List("not_found", "bad_request"),
     tags = List("trading", "offer"),
     roles = None,
@@ -182,12 +245,46 @@ object Routes {
   }
   private def productToJson(p: Product): Json = p match {
     case EmptyBody => Json.Null
-    case other     => Json.fromString(other.toString)
+    case resp: ObpOfferResponseExample =>
+      Json.obj(
+        "offer_id"   -> Json.fromString(resp.offer_id),
+        "status"     -> Json.fromString(resp.status),
+        "created_at" -> Json.fromString(resp.created_at),
+        "updated_at" -> Json.fromString(resp.updated_at),
+        "offer_details" -> Json.obj(
+          "offer_type"       -> Json.fromString(resp.offer_details.offer_type),
+          "asset_code"       -> Json.fromString(resp.offer_details.asset_code),
+          "asset_amount"     -> Json.fromString(resp.offer_details.asset_amount),
+          "filled_amount"    -> Json.fromString(resp.offer_details.filled_amount),
+          "remaining_amount" -> Json.fromString(resp.offer_details.remaining_amount),
+          "price_currency"   -> Json.fromString(resp.offer_details.price_currency),
+          "price_amount"     -> Json.fromString(resp.offer_details.price_amount),
+          "expiry_datetime"  -> Json.fromString(resp.offer_details.expiry_datetime),
+          "minimum_fill"     -> Json.fromString(resp.offer_details.minimum_fill)
+        ),
+        "account_info" -> Json.obj(
+          "bank_id"   -> Json.fromString(resp.account_info.bank_id),
+          "account_id"-> Json.fromString(resp.account_info.account_id),
+          "view_id"   -> Json.fromString(resp.account_info.view_id)
+        ),
+        "executions" -> Json.arr(
+          resp.executions.map { exec =>
+            Json.obj(
+              "execution_id"        -> Json.fromString(exec.execution_id),
+              "executed_amount"     -> Json.fromString(exec.executed_amount),
+              "executed_price"      -> Json.fromString(exec.executed_price),
+              "executed_at"         -> Json.fromString(exec.executed_at),
+              "counterpart_offer_id"-> Json.fromString(exec.counterpart_offer_id)
+            )
+          }: _*
+        )
+      )
+    case other => Json.fromString(other.toString)
   }
 
   private def toResourceDocJson(doc: ResourceDoc): ResourceDocJson =
     ResourceDocJson(
-      operation_id = doc.partialFunctionName,
+      operation_id = doc.implementedInApiVersion+"-"+doc.partialFunctionName,
       implemented_by = ImplementedByJson(doc.implementedInApiVersion, doc.partialFunctionName),
       request_url = doc.requestUrl,
       summary = doc.summary,
