@@ -14,28 +14,28 @@ import org.scalatest.matchers.should.Matchers
 
 class OfferRoutesTest extends AnyFunSuite with Matchers {
 
-  private def app(offerService: OfferService[IO]) = {
-    val orderStub: OrderService[IO] = new OrderService[IO] {
+  private def app(offerService: OfferService) = {
+    val orderStub: OrderService = new OrderService {
       def createOrder(req: CreateOrderRequest) = IO.pure(Left(ErrorResponse("not_implemented", "order create not used in this test")))
       def cancelOrder(orderId: String) = IO.pure(Left(ErrorResponse("not_implemented", "order cancel not used in this test")))
       def getOrder(orderId: String) = IO.pure(Left(ErrorResponse("not_found", s"order $orderId not found")))
     }
-    val matchStub: MatchService[IO] = new MatchService[IO] {
+    val matchStub: MatchService = new MatchService {
       def createMatch(req: MatchRequest) = IO.pure(Left(ErrorResponse("not_implemented", "match not used in this test")))
     }
-    val settlementStub: SettlementService[IO] = new SettlementService[IO] {
+    val settlementStub: SettlementService = new SettlementService {
       def settle(req: SettlementRequest) = IO.pure(Left(ErrorResponse("not_implemented", "settle not used in this test")))
       def getTrade(tradeId: String) = IO.pure(Left(ErrorResponse("not_implemented", "getTrade not used in this test")))
     }
-    val fundsStub: FundsService[IO] = new FundsService[IO] {
+    val fundsStub: FundsService = new FundsService {
       def notifyDeposit(req: DepositNotification) = IO.pure(Left(ErrorResponse("not_implemented", "notifyDeposit not used in this test")))
       def requestWithdrawal(req: WithdrawalRequest) = IO.pure(Left(ErrorResponse("not_implemented", "requestWithdrawal not used in this test")))
     }
-    Routes.api[IO](orderStub, offerService, matchStub, settlementStub, fundsStub).orNotFound
+    Routes.api(orderStub, offerService, matchStub, settlementStub, fundsStub).orNotFound
   }
 
   test("create -> get -> cancel offer happy path") {
-    val service = InMemoryOfferService.create[IO]().unsafeRunSync()
+    val service = InMemoryOfferService.create().unsafeRunSync()
     val httpApp = app(service)
 
     val bankId = "bank-1"
@@ -84,7 +84,7 @@ class OfferRoutesTest extends AnyFunSuite with Matchers {
   }
 
   test("invalid JSON returns 400") {
-    val service = InMemoryOfferService.create[IO]().unsafeRunSync()
+    val service = InMemoryOfferService.create().unsafeRunSync()
     val httpApp = app(service)
 
     val req = Request[IO](
@@ -97,7 +97,7 @@ class OfferRoutesTest extends AnyFunSuite with Matchers {
   }
 
   test("get non-existing offer returns 404") {
-    val service = InMemoryOfferService.create[IO]().unsafeRunSync()
+    val service = InMemoryOfferService.create().unsafeRunSync()
     val httpApp = app(service)
 
     val req = Request[IO](

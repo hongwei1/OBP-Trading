@@ -9,8 +9,11 @@ import io.circe.generic.auto._
 import io.circe.parser.parse
 import java.util.UUID
 import scala.util.Try
-import com.openbankproject.trading.docs.model.{ResourceDoc, EmptyBody}
+import com.openbankproject.trading.docs.model.{ResourceDoc, EmptyBody, ResourceDocJson, ImplementedByJson}
+import com.openbankproject.trading.docs.registry.ResourceDocRegistry
 import cats.effect.IO
+import io.circe.syntax._
+import io.circe.Json
 
 /** Aggregated HTTP routes (interfaces only, no concrete wiring). */
 object Routes {
@@ -177,6 +180,41 @@ object Routes {
         }
     }
   }
+  private def productToJson(p: Product): Json = p match {
+    case EmptyBody => Json.Null
+    case other     => Json.fromString(other.toString)
+  }
+
+  private def toResourceDocJson(doc: ResourceDoc): ResourceDocJson =
+    ResourceDocJson(
+      operation_id = doc.partialFunctionName,
+      implemented_by = ImplementedByJson(doc.implementedInApiVersion, doc.partialFunctionName),
+      request_url = doc.requestUrl,
+      summary = doc.summary,
+      description = doc.description,
+      description_markdown = doc.description,
+      example_request_body = productToJson(doc.exampleRequestBody),
+      success_response_body = productToJson(doc.successResponseBody),
+      error_response_bodies = doc.errorResponseBodies,
+      tags = doc.tags,
+      typed_request_body = Json.Null,
+      typed_success_response_body = Json.Null,
+      roles = doc.roles,
+      is_featured = doc.isFeatured,
+      special_instructions = doc.specialInstructions,
+      specified_url = doc.specifiedUrl,
+      connector_methods = Nil,
+      created_by_bank_id = doc.createdByBankId
+    )
+
+  def getResourceDocsPF: OBPEndpoint = {
+    {
+      case GET -> Root / "obp" / "v7.0.0" / "resource-docs" / apiVersion / "obp" =>
+        val docs = ResourceDocRegistry.all.map(toResourceDocJson)
+        Ok(docs.asJson)
+    }
+  }
+
   def api(
     order: OrderService,
     offer: OfferService,
@@ -184,6 +222,7 @@ object Routes {
     settlement: SettlementService,
     funds: FundsService
   ): HttpRoutes[IO] = {
+    ResourceDocRegistry.register(getObpOfferDoc(offer))
     val marketPF =
       postMarketOrdersPF(order)
         .orElse(deleteMarketOrderPF(order))
@@ -198,6 +237,7 @@ object Routes {
       obpCreateOfferPF(offer)
         .orElse(obpGetOfferPF(offer))
         .orElse(obpCancelOfferPF(offer))
+        .orElse(getResourceDocsPF)
     val obpOfferRoutes: HttpRoutes[IO] = HttpRoutes.of[IO](obpOfferPF)
     marketRoutes <+> obpOfferRoutes
   }
