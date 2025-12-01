@@ -14,20 +14,19 @@ import com.typesafe.config.ConfigFactory
   */
 object HttpServerMain extends IOApp.Simple {
 
-  private val orderServiceIO: IO[OrderService[IO]] = InMemoryOrderService.create[IO]()
-  
-  private val offerServiceIO: IO[OfferService[IO]] = InMemoryOfferService.create[IO]()
+  private val orderServiceIO: IO[OrderService] = InMemoryOrderService.create()
+  private val offerServiceIO: IO[OfferService] = InMemoryOfferService.create()
 
-  private val matchService: MatchService[IO] = new MatchService[IO] {
+  private val matchService: MatchService = new MatchService {
     def createMatch(req: MatchRequest) = IO.pure(Left(ErrorResponse(ErrorCodes.NOT_IMPLEMENTED, "createMatch not implemented")))
   }
 
-  private val settlementService: SettlementService[IO] = new SettlementService[IO] {
+  private val settlementService: SettlementService = new SettlementService {
     def settle(req: SettlementRequest) = IO.pure(Left(ErrorResponse(ErrorCodes.NOT_IMPLEMENTED, "settle not implemented")))
     def getTrade(tradeId: String) = IO.pure(Left(ErrorResponse(ErrorCodes.NOT_IMPLEMENTED, "getTrade not implemented")))
   }
 
-  private val fundsService: FundsService[IO] = new FundsService[IO] {
+  private val fundsService: FundsService = new FundsService {
     def notifyDeposit(req: DepositNotification) = IO.pure(Left(ErrorResponse(ErrorCodes.NOT_IMPLEMENTED, "notifyDeposit not implemented")))
     def requestWithdrawal(req: WithdrawalRequest) = IO.pure(Left(ErrorResponse(ErrorCodes.NOT_IMPLEMENTED, "requestWithdrawal not implemented")))
   }
@@ -39,7 +38,7 @@ object HttpServerMain extends IOApp.Simple {
       serverPort = config.getString("server.port").toInt
       offerService <- offerServiceIO
       orderService <- orderServiceIO
-      apiRoutes = Routes.api[IO](orderService, offerService, matchService, settlementService, fundsService)
+      apiRoutes = Routes.api(orderService, offerService, matchService, settlementService, fundsService)
       httpApp   = Router("/" -> apiRoutes).orNotFound
       host <- IO.fromOption(Host.fromString(serverHost))(new IllegalArgumentException(s"Invalid host: $serverHost"))
       port <- IO.fromOption(Port.fromInt(serverPort))(new IllegalArgumentException(s"Invalid port: $serverPort"))

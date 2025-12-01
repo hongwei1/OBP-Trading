@@ -1,6 +1,6 @@
 package com.openbankproject.trading.service
 
-import cats.effect.kernel.Async
+import cats.effect.IO
 import cats.effect.Ref
 import cats.syntax.all._
 import com.openbankproject.trading.http._
@@ -9,13 +9,13 @@ import com.openbankproject.trading.http.ErrorCodes
 import java.time.Instant
 import java.util.UUID
 
-final class InMemoryOrderService[F[_]: Async] private (
-  state: Ref[F, Map[String, InMemoryOrderService.StoredOrder]]
-) extends OrderService[F] {
+final class InMemoryOrderService private (
+  state: Ref[IO, Map[String, InMemoryOrderService.StoredOrder]]
+) extends OrderService {
 
   import InMemoryOrderService.StoredOrder
 
-  def createOrder(req: CreateOrderRequest): F[Either[ErrorResponse, CreateOrderResponse]] = {
+  def createOrder(req: CreateOrderRequest): IO[Either[ErrorResponse, CreateOrderResponse]] = {
     val id = UUID.randomUUID().toString
     val now = Instant.now()
     val stored = StoredOrder(
@@ -29,10 +29,10 @@ final class InMemoryOrderService[F[_]: Async] private (
       createdAt = now,
       expiresAt = None
     )
-    state.update(_ + (id -> stored)) *> Async[F].pure(Right(CreateOrderResponse(id, stored.status, stored.remaining)))
+    state.update(_ + (id -> stored)) *> IO.pure(Right(CreateOrderResponse(id, stored.status, stored.remaining)))
   }
 
-  def cancelOrder(orderId: String): F[Either[ErrorResponse, CancelOrderResponse]] = {
+  def cancelOrder(orderId: String): IO[Either[ErrorResponse, CancelOrderResponse]] = {
     state.modify { m =>
       m.get(orderId) match {
         case Some(o) =>
@@ -44,7 +44,7 @@ final class InMemoryOrderService[F[_]: Async] private (
     }
   }
 
-  def getOrder(orderId: String): F[Either[ErrorResponse, OrderView]] = {
+  def getOrder(orderId: String): IO[Either[ErrorResponse, OrderView]] = {
     state.get.map { m =>
       m.get(orderId) match {
         case Some(o) =>
@@ -78,8 +78,8 @@ object InMemoryOrderService {
     expiresAt: Option[Instant]
   )
 
-  def create[F[_]: Async](): F[InMemoryOrderService[F]] =
-    Ref.of[F, Map[String, StoredOrder]](Map.empty).map(ref => new InMemoryOrderService[F](ref))
+  def create(): IO[InMemoryOrderService] =
+    Ref.of[IO, Map[String, StoredOrder]](Map.empty).map(ref => new InMemoryOrderService(ref))
 }
 
 

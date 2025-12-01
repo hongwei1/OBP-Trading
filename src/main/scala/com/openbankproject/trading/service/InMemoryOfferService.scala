@@ -1,6 +1,6 @@
 package com.openbankproject.trading.service
 
-import cats.effect.kernel.Async
+import cats.effect.IO
 import cats.effect.Ref
 import cats.syntax.all._
 import com.openbankproject.trading.http._
@@ -9,13 +9,13 @@ import com.openbankproject.trading.http.ErrorCodes
 import java.time.Instant
 import java.util.UUID
 
-final class InMemoryOfferService[F[_]: Async] private (
-  state: Ref[F, Map[String, InMemoryOfferService.StoredOffer]]
-) extends OfferService[F] {
+final class InMemoryOfferService private (
+  state: Ref[IO, Map[String, InMemoryOfferService.StoredOffer]]
+) extends OfferService {
 
   import InMemoryOfferService.StoredOffer
 
-  def createOffer(req: CreateOfferRequest): F[Either[ErrorResponse, CreateOfferResponse]] = {
+  def createOffer(req: CreateOfferRequest): IO[Either[ErrorResponse, CreateOfferResponse]] = {
     val id = UUID.randomUUID().toString
     val now = Instant.now()
     val stored = StoredOffer(
@@ -29,10 +29,10 @@ final class InMemoryOfferService[F[_]: Async] private (
       createdAt = now,
       expiresAt = None
     )
-    state.update(_ + (id -> stored)) *> Async[F].pure(Right(CreateOfferResponse(id, stored.status, stored.remaining)))
+    state.update(_ + (id -> stored)) *> IO.pure(Right(CreateOfferResponse(id, stored.status, stored.remaining)))
   }
 
-  def cancelOffer(offerId: String): F[Either[ErrorResponse, CancelOfferResponse]] = {
+  def cancelOffer(offerId: String): IO[Either[ErrorResponse, CancelOfferResponse]] = {
     state.modify { m =>
       m.get(offerId) match {
         case Some(o) =>
@@ -44,7 +44,7 @@ final class InMemoryOfferService[F[_]: Async] private (
     }
   }
 
-  def getOffer(offerId: String): F[Either[ErrorResponse, OfferView]] = {
+  def getOffer(offerId: String): IO[Either[ErrorResponse, OfferView]] = {
     state.get.map { m =>
       m.get(offerId) match {
         case Some(o) =>
@@ -78,8 +78,8 @@ object InMemoryOfferService {
     expiresAt: Option[Instant]
   )
 
-  def create[F[_]: Async](): F[InMemoryOfferService[F]] =
-    Ref.of[F, Map[String, StoredOffer]](Map.empty).map(ref => new InMemoryOfferService[F](ref))
+  def create(): IO[InMemoryOfferService] =
+    Ref.of[IO, Map[String, StoredOffer]](Map.empty).map(ref => new InMemoryOfferService(ref))
 }
 
 

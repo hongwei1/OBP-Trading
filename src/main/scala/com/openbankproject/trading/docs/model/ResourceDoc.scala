@@ -1,11 +1,13 @@
 package com.openbankproject.trading.docs.model
 
 import org.http4s.{Request, Response}
+import cats.effect.IO
+import com.openbankproject.trading.http.OBPEndpoint
 
 /**
   * ResourceDoc aligned with OBP-API structure.
   * Simplified version without Lift dependencies.
-  * 
+  *
   * @param partialFunction The actual partial function implementing this endpoint
   * @param implementedInApiVersion API version (e.g., "v7.0.0")
   * @param partialFunctionName Name of the partial function (e.g., "obpGetOfferPF")
@@ -19,8 +21,8 @@ import org.http4s.{Request, Response}
   * @param tags Tags for categorization
   * @param roles Required roles (None means public)
   */
-final case class ResourceDoc[F[_]](
-  partialFunction: PartialFunction[Request[F], F[Response[F]]],
+final case class ResourceDoc(
+  partialFunction: OBPEndpoint,
   implementedInApiVersion: String,
   partialFunctionName: String,
   requestVerb: String,

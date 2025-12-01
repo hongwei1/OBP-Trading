@@ -1,8 +1,7 @@
 package com.openbankproject.trading.http
 
 import org.http4s._
-import org.http4s.dsl.Http4sDsl
-import cats.effect.Async
+import org.http4s.dsl.io._
 import cats.syntax.all._
 import com.openbankproject.trading.service._
 import org.http4s.circe.CirceEntityCodec._
@@ -11,12 +10,12 @@ import io.circe.parser.parse
 import java.util.UUID
 import scala.util.Try
 import com.openbankproject.trading.docs.model.{ResourceDoc, EmptyBody}
+import cats.effect.IO
 
 /** Aggregated HTTP routes (interfaces only, no concrete wiring). */
 object Routes {
   // ===== Named partial functions for OBP Offer endpoints =====
-  def obpCreateOfferPF[F[_]: Async](offer: OfferService[F]): OBPEndpoint[F] = {
-    val dsl = new Http4sDsl[F] {}; import dsl._
+  def obpCreateOfferPF(offer: OfferService): OBPEndpoint = {
     {
       // POST /obp/v7.0.0/banks/BANK_ID/accounts/ACCOUNT_ID/views/VIEW_ID/trading/offers
       case req @ POST -> Root / "obp" / "v7.0.0" / "banks" / bankId / "accounts" / accountId / "views" / viewId / "trading" / "offers" =>
@@ -61,8 +60,7 @@ object Routes {
   }
 
   // ===== Named partial functions for Minimal Market endpoints =====
-  def postMarketOrdersPF[F[_]: Async](order: OrderService[F]): OBPEndpoint[F] = {
-    val dsl = new Http4sDsl[F] {}; import dsl._
+  def postMarketOrdersPF(order: OrderService): OBPEndpoint = {
     {
       // POST /market/orders
       case req @ POST -> Root / "market" / "orders" =>
@@ -77,8 +75,7 @@ object Routes {
     }
   }
 
-  def deleteMarketOrderPF[F[_]: Async](order: OrderService[F]): OBPEndpoint[F] = {
-    val dsl = new Http4sDsl[F] {}; import dsl._
+  def deleteMarketOrderPF(order: OrderService): OBPEndpoint = {
     {
       // DELETE /market/orders/{id}
       case DELETE -> Root / "market" / "orders" / orderId =>
@@ -89,8 +86,7 @@ object Routes {
     }
   }
 
-  def getMarketOrderPF[F[_]: Async](order: OrderService[F]): OBPEndpoint[F] = {
-    val dsl = new Http4sDsl[F] {}; import dsl._
+  def getMarketOrderPF(order: OrderService): OBPEndpoint = {
     {
       // GET /market/orders/{id}
       case GET -> Root / "market" / "orders" / orderId =>
@@ -101,54 +97,49 @@ object Routes {
     }
   }
 
-  def postMarketMatchesPF[F[_]: Async](matcher: MatchService[F]): OBPEndpoint[F] = {
-    val dsl = new Http4sDsl[F] {}; import dsl._
+  def postMarketMatchesPF(matcher: MatchService): OBPEndpoint = {
     {
       // POST /market/matches
       case req @ POST -> Root / "market" / "matches" =>
-        Async[F].pure(Response[F](status = Status.NotImplemented))
+        IO.pure(Response[IO](status = Status.NotImplemented))
     }
   }
 
-  def postMarketSettlementsPF[F[_]: Async](settlement: SettlementService[F]): OBPEndpoint[F] = {
-    val dsl = new Http4sDsl[F] {}; import dsl._
+  def postMarketSettlementsPF(settlement: SettlementService): OBPEndpoint = {
     {
       // POST /market/settlements
       case req @ POST -> Root / "market" / "settlements" =>
-        Async[F].pure(Response[F](status = Status.NotImplemented))
+        IO.pure(Response[IO](status = Status.NotImplemented))
     }
   }
 
-  def getMarketTradePF[F[_]: Async](settlement: SettlementService[F]): OBPEndpoint[F] = {
-    val dsl = new Http4sDsl[F] {}; import dsl._
+  def getMarketTradePF(settlement: SettlementService): OBPEndpoint = {
     {
       // GET /market/trades/{id}
       case GET -> Root / "market" / "trades" / tradeId =>
-        Async[F].pure(Response[F](status = Status.NotImplemented))
+        IO.pure(Response[IO](status = Status.NotImplemented))
     }
   }
 
-  def postMarketDepositsPF[F[_]: Async](funds: FundsService[F]): OBPEndpoint[F] = {
-    val dsl = new Http4sDsl[F] {}; import dsl._
+  def postMarketDepositsPF(funds: FundsService): OBPEndpoint = {
     {
       // POST /market/deposits
       case req @ POST -> Root / "market" / "deposits" =>
-        Async[F].pure(Response[F](status = Status.NotImplemented))
+        IO.pure(Response[IO](status = Status.NotImplemented))
     }
   }
 
-  def postMarketWithdrawalsPF[F[_]: Async](funds: FundsService[F]): OBPEndpoint[F] = {
-    val dsl = new Http4sDsl[F] {}; import dsl._
+  def postMarketWithdrawalsPF(funds: FundsService): OBPEndpoint = {
     {
       // POST /market/withdrawals
       case req @ POST -> Root / "market" / "withdrawals" =>
-        Async[F].pure(Response[F](status = Status.NotImplemented))
+        IO.pure(Response[IO](status = Status.NotImplemented))
     }
   }
 
   // ResourceDoc for: GET /obp/v7.0.0/.../trading/offers/{OFFER_ID}
-  def getObpOfferDoc[F[_]: Async](offer: OfferService[F]): ResourceDoc[F] = ResourceDoc(
-    partialFunction = obpGetOfferPF[F](offer),
+  def getObpOfferDoc(offer: OfferService): ResourceDoc = ResourceDoc(
+    partialFunction = obpGetOfferPF(offer),
     implementedInApiVersion = "v7.0.0",
     partialFunctionName = "obpGetOfferPF",
     requestVerb = "GET",
@@ -165,11 +156,9 @@ object Routes {
     specifiedUrl = None,
     createdByBankId = None
   )
-    
-  def obpGetOfferPF[F[_]: Async](offer: OfferService[F]): OBPEndpoint[F] = {
-    val dsl = new Http4sDsl[F] {}; import dsl._
+
+  def obpGetOfferPF(offer: OfferService): OBPEndpoint = {
     {
-      // GET /obp/v7.0.0/banks/BANK_ID/accounts/ACCOUNT_ID/views/VIEW_ID/trading/offers/OFFER_ID
       case GET -> Root / "obp" / "v7.0.0" / "banks" / bankId / "accounts" / accountId / "views" / viewId / "trading" / "offers" / offerId =>
         offer.getOffer(offerId).flatMap {
           case Right(v)  => Ok(v)
@@ -178,8 +167,7 @@ object Routes {
     }
   }
 
-  def obpCancelOfferPF[F[_]: Async](offer: OfferService[F]): OBPEndpoint[F] = {
-    val dsl = new Http4sDsl[F] {}; import dsl._
+  def obpCancelOfferPF(offer: OfferService): OBPEndpoint = {
     {
       // DELETE /obp/v7.0.0/banks/BANK_ID/accounts/ACCOUNT_ID/views/VIEW_ID/trading/offers/OFFER_ID
       case DELETE -> Root / "obp" / "v7.0.0" / "banks" / bankId / "accounts" / accountId / "views" / viewId / "trading" / "offers" / offerId =>
@@ -189,28 +177,28 @@ object Routes {
         }
     }
   }
-  def api[F[_]: Async](
-    order: OrderService[F],
-    offer: OfferService[F],
-    matcher: MatchService[F],
-    settlement: SettlementService[F],
-    funds: FundsService[F]
-  ): HttpRoutes[F] = {
+  def api(
+    order: OrderService,
+    offer: OfferService,
+    matcher: MatchService,
+    settlement: SettlementService,
+    funds: FundsService
+  ): HttpRoutes[IO] = {
     val marketPF =
-      postMarketOrdersPF[F](order)
-        .orElse(deleteMarketOrderPF[F](order))
-        .orElse(getMarketOrderPF[F](order))
-        .orElse(postMarketMatchesPF[F](matcher))
-        .orElse(postMarketSettlementsPF[F](settlement))
-        .orElse(getMarketTradePF[F](settlement))
-        .orElse(postMarketDepositsPF[F](funds))
-        .orElse(postMarketWithdrawalsPF[F](funds))
-    val marketRoutes: HttpRoutes[F] = HttpRoutes.of[F](marketPF)
+      postMarketOrdersPF(order)
+        .orElse(deleteMarketOrderPF(order))
+        .orElse(getMarketOrderPF(order))
+        .orElse(postMarketMatchesPF(matcher))
+        .orElse(postMarketSettlementsPF(settlement))
+        .orElse(getMarketTradePF(settlement))
+        .orElse(postMarketDepositsPF(funds))
+        .orElse(postMarketWithdrawalsPF(funds))
+    val marketRoutes: HttpRoutes[IO] = HttpRoutes.of[IO](marketPF)
     val obpOfferPF =
-      obpCreateOfferPF[F](offer)
-        .orElse(obpGetOfferPF[F](offer))
-        .orElse(obpCancelOfferPF[F](offer))
-    val obpOfferRoutes: HttpRoutes[F] = HttpRoutes.of[F](obpOfferPF)
+      obpCreateOfferPF(offer)
+        .orElse(obpGetOfferPF(offer))
+        .orElse(obpCancelOfferPF(offer))
+    val obpOfferRoutes: HttpRoutes[IO] = HttpRoutes.of[IO](obpOfferPF)
     marketRoutes <+> obpOfferRoutes
   }
 }

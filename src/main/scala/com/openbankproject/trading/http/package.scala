@@ -1,6 +1,7 @@
 package com.openbankproject.trading
 
 import org.http4s.{Request, Response}
+import cats.effect.IO
 
 /**
  * Package object for HTTP-related constants, type aliases, and utilities.
@@ -15,7 +16,7 @@ package object http {
   
   // ========== Type Aliases ==========
   /** Type alias for HTTP endpoint partial functions */
-  type OBPEndpoint[F[_]] = PartialFunction[Request[F], F[Response[F]]]
+  type OBPEndpoint = PartialFunction[Request[IO], IO[Response[IO]]]
   
   // ========== API Constants ==========
   /** Current OBP API version */
