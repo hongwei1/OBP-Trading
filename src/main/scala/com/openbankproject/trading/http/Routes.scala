@@ -1,19 +1,20 @@
 package com.openbankproject.trading.http
 
-import org.http4s._
-import org.http4s.dsl.io._
+import cats.effect.IO
 import cats.syntax.all._
+import com.openbankproject.trading.docs.model.{EmptyBody, ImplementedByJson, ResourceDoc, ResourceDocJson}
+import com.openbankproject.trading.docs.registry.ResourceDocRegistry
 import com.openbankproject.trading.service._
-import org.http4s.circe.CirceEntityCodec._
 import io.circe.generic.auto._
 import io.circe.parser.parse
-import java.util.UUID
-import scala.util.Try
-import com.openbankproject.trading.docs.model.{ResourceDoc, EmptyBody, ResourceDocJson, ImplementedByJson}
-import com.openbankproject.trading.docs.registry.ResourceDocRegistry
-import cats.effect.IO
 import io.circe.syntax._
 import io.circe.Json
+import org.http4s._
+import org.http4s.circe.CirceEntityCodec._
+import org.http4s.dsl.io._
+
+import java.util.UUID
+import scala.util.Try
 
 /** Aggregated HTTP routes (interfaces only, no concrete wiring). */
 object Routes {
@@ -245,41 +246,8 @@ object Routes {
   }
   private def productToJson(p: Product): Json = p match {
     case EmptyBody => Json.Null
-    case resp: ObpOfferResponseExample =>
-      Json.obj(
-        "offer_id"   -> Json.fromString(resp.offer_id),
-        "status"     -> Json.fromString(resp.status),
-        "created_at" -> Json.fromString(resp.created_at),
-        "updated_at" -> Json.fromString(resp.updated_at),
-        "offer_details" -> Json.obj(
-          "offer_type"       -> Json.fromString(resp.offer_details.offer_type),
-          "asset_code"       -> Json.fromString(resp.offer_details.asset_code),
-          "asset_amount"     -> Json.fromString(resp.offer_details.asset_amount),
-          "filled_amount"    -> Json.fromString(resp.offer_details.filled_amount),
-          "remaining_amount" -> Json.fromString(resp.offer_details.remaining_amount),
-          "price_currency"   -> Json.fromString(resp.offer_details.price_currency),
-          "price_amount"     -> Json.fromString(resp.offer_details.price_amount),
-          "expiry_datetime"  -> Json.fromString(resp.offer_details.expiry_datetime),
-          "minimum_fill"     -> Json.fromString(resp.offer_details.minimum_fill)
-        ),
-        "account_info" -> Json.obj(
-          "bank_id"   -> Json.fromString(resp.account_info.bank_id),
-          "account_id"-> Json.fromString(resp.account_info.account_id),
-          "view_id"   -> Json.fromString(resp.account_info.view_id)
-        ),
-        "executions" -> Json.arr(
-          resp.executions.map { exec =>
-            Json.obj(
-              "execution_id"        -> Json.fromString(exec.execution_id),
-              "executed_amount"     -> Json.fromString(exec.executed_amount),
-              "executed_price"      -> Json.fromString(exec.executed_price),
-              "executed_at"         -> Json.fromString(exec.executed_at),
-              "counterpart_offer_id"-> Json.fromString(exec.counterpart_offer_id)
-            )
-          }: _*
-        )
-      )
-    case other => Json.fromString(other.toString)
+    case resp: ObpOfferResponseExample => resp.asJson
+    case other => Json.fromString(other.toString).asJson
   }
 
   private def toResourceDocJson(doc: ResourceDoc): ResourceDocJson =
