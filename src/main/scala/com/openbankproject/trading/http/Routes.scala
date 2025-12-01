@@ -18,12 +18,12 @@ import io.circe.Json
 /** Aggregated HTTP routes (interfaces only, no concrete wiring). */
 object Routes {
   // ===== Named partial functions for OBP Offer endpoints =====
-  def obpCreateOfferPF(offer: OfferService): OBPEndpoint = {
+  def createOfferPF(offer: OfferService): OBPEndpoint = {
     {
       // POST /obp/v7.0.0/banks/BANK_ID/accounts/ACCOUNT_ID/views/VIEW_ID/trading/offers
       case req @ POST -> Root / "obp" / "v7.0.0" / "banks" / bankId / "accounts" / accountId / "views" / viewId / "trading" / "offers" =>
         // Minimal body mapping based on trading-api-endpoints.md
-        case class ObpCreateOfferReq(
+        case class CreateOfferReq(
           offer_type: String,
           asset_code: String,
           asset_amount: String,
@@ -34,7 +34,7 @@ object Routes {
           settlement_account_id: String
         )
         req.bodyText.compile.string.flatMap { raw =>
-          parse(raw).leftMap(_.getMessage).flatMap(_.as[ObpCreateOfferReq].leftMap(_.getMessage)) match {
+          parse(raw).leftMap(_.getMessage).flatMap(_.as[CreateOfferReq].leftMap(_.getMessage)) match {
             case Left(msg) => BadRequest(ErrorResponse(ErrorCodes.INVALID_JSON, s"Invalid JSON: $msg"))
             case Right(obp) =>
               val side  = obp.offer_type.toUpperCase match {
@@ -141,10 +141,10 @@ object Routes {
   }
 
   // ResourceDoc for: GET /obp/v7.0.0/.../trading/offers/{OFFER_ID}
-  def getObpOfferDoc(offer: OfferService): ResourceDoc = ResourceDoc(
-    partialFunction = obpGetOfferPF(offer),
+  def getOfferDoc(offer: OfferService): ResourceDoc = ResourceDoc(
+    partialFunction = getOfferPF(offer),
     implementedInApiVersion = "v7.0.0",
-    partialFunctionName = "obpGetOfferPF",
+    partialFunctionName = "getOfferPF",
     requestVerb = "GET",
     requestUrl = "/obp/v7.0.0/banks/{BANK_ID}/accounts/{ACCOUNT_ID}/views/{VIEW_ID}/trading/offers/{OFFER_ID}",
     summary = "Get OBP trading offer by id",
@@ -160,7 +160,7 @@ object Routes {
     createdByBankId = None
   )
 
-  def obpGetOfferPF(offer: OfferService): OBPEndpoint = {
+  def getOfferPF(offer: OfferService): OBPEndpoint = {
     {
       case GET -> Root / "obp" / "v7.0.0" / "banks" / bankId / "accounts" / accountId / "views" / viewId / "trading" / "offers" / offerId =>
         offer.getOffer(offerId).flatMap {
@@ -170,7 +170,7 @@ object Routes {
     }
   }
 
-  def obpCancelOfferPF(offer: OfferService): OBPEndpoint = {
+  def cancelOfferPF(offer: OfferService): OBPEndpoint = {
     {
       // DELETE /obp/v7.0.0/banks/BANK_ID/accounts/ACCOUNT_ID/views/VIEW_ID/trading/offers/OFFER_ID
       case DELETE -> Root / "obp" / "v7.0.0" / "banks" / bankId / "accounts" / accountId / "views" / viewId / "trading" / "offers" / offerId =>
@@ -222,7 +222,7 @@ object Routes {
     settlement: SettlementService,
     funds: FundsService
   ): HttpRoutes[IO] = {
-    ResourceDocRegistry.register(getObpOfferDoc(offer))
+    ResourceDocRegistry.register(getOfferDoc(offer))
     val marketPF =
       postMarketOrdersPF(order)
         .orElse(deleteMarketOrderPF(order))
@@ -233,13 +233,13 @@ object Routes {
         .orElse(postMarketDepositsPF(funds))
         .orElse(postMarketWithdrawalsPF(funds))
     val marketRoutes: HttpRoutes[IO] = HttpRoutes.of[IO](marketPF)
-    val obpOfferPF =
-      obpCreateOfferPF(offer)
-        .orElse(obpGetOfferPF(offer))
-        .orElse(obpCancelOfferPF(offer))
+    val offerPF =
+      createOfferPF(offer)
+        .orElse(getOfferPF(offer))
+        .orElse(cancelOfferPF(offer))
         .orElse(getResourceDocsPF)
-    val obpOfferRoutes: HttpRoutes[IO] = HttpRoutes.of[IO](obpOfferPF)
-    marketRoutes <+> obpOfferRoutes
+    val offerRoutes: HttpRoutes[IO] = HttpRoutes.of[IO](offerPF)
+    marketRoutes <+> offerRoutes
   }
 }
 

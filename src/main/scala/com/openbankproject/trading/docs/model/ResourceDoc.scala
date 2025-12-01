@@ -11,7 +11,7 @@ import io.circe.Json
   *
   * @param partialFunction The actual partial function implementing this endpoint
   * @param implementedInApiVersion API version (e.g., "v7.0.0")
-  * @param partialFunctionName Name of the partial function (e.g., "obpGetOfferPF")
+  * @param partialFunctionName Name of the partial function (e.g., "getOfferPF")
   * @param requestVerb HTTP method (GET, POST, PUT, DELETE, etc.)
   * @param requestUrl URL pattern with path parameters
   * @param summary Short description of the endpoint
@@ -50,7 +50,7 @@ final case class ResourceDoc(
   */
 final case class ImplementedByJson(
   version: String,  // Short hand for version, e.g. "v7_0_0"
-  function: String  // The partial function name, e.g. "obpGetOfferPF"
+  function: String  // The partial function name, e.g. "getOfferPF"
 )
 
 /**
