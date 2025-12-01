@@ -10,8 +10,7 @@ import io.circe.generic.auto._
 import io.circe.parser.parse
 import java.util.UUID
 import scala.util.Try
-import com.openbankproject.trading.docs.model.{ResourceDoc, HttpMethod, RequiredRole, ErrorDoc}
-import com.openbankproject.trading.docs.registry.ResourceDocRegistry
+import com.openbankproject.trading.docs.model.{ResourceDoc, EmptyBody}
 
 /** Aggregated HTTP routes (interfaces only, no concrete wiring). */
 object Routes {
@@ -148,32 +147,23 @@ object Routes {
   }
 
   // ResourceDoc for: GET /obp/v7.0.0/.../trading/offers/{OFFER_ID}
-  val getObpOfferDoc: ResourceDoc = ResourceDoc(
-    operationId = "getObpOffer",
-    method = HttpMethod.GET,
-    path = "/obp/v7.0.0/banks/{BANK_ID}/accounts/{ACCOUNT_ID}/views/{VIEW_ID}/trading/offers/{OFFER_ID}",
+  def getObpOfferDoc[F[_]: Async](offer: OfferService[F]): ResourceDoc[F] = ResourceDoc(
+    partialFunction = obpGetOfferPF[F](offer),
+    implementedInApiVersion = "v7.0.0",
+    partialFunctionName = "obpGetOfferPF",
+    requestVerb = "GET",
+    requestUrl = "/obp/v7.0.0/banks/{BANK_ID}/accounts/{ACCOUNT_ID}/views/{VIEW_ID}/trading/offers/{OFFER_ID}",
     summary = "Get OBP trading offer by id",
     description = "Returns the trading offer details by id for the given bank/account/view.",
-    roles = RequiredRole.Public,
-    tags = Set("trading", "offer"),
-    requestExample = None,
-    responseExample = Some(
-      """{
-        |  "offerId": "OFFER-123",
-        |  "offerType": "BUY",
-        |  "price": 100.50,
-        |  "quantity": 2.0,
-        |  "remaining": 0.0,  
-        |  "status": "FILLED",
-        |  "ownerAccountId": "ACC-001",
-        |  "createdAt": "2025-11-03T10:20:30Z",
-        |  "expiresAt": null
-        |}""".stripMargin
-    ),
-    errorResponses = List(
-      ErrorDoc(code = ErrorCodes.NOT_FOUND, httpStatus = 404, message = Some("Offer not found")),
-      ErrorDoc(code = ErrorCodes.BAD_REQUEST, httpStatus = 400, message = Some("Invalid parameters"))
-    )
+    exampleRequestBody = EmptyBody,
+    successResponseBody = EmptyBody,
+    errorResponseBodies = List("not_found", "bad_request"),
+    tags = List("trading", "offer"),
+    roles = None,
+    isFeatured = false,
+    specialInstructions = None,
+    specifiedUrl = None,
+    createdByBankId = None
   )
     
   def obpGetOfferPF[F[_]: Async](offer: OfferService[F]): OBPEndpoint[F] = {
@@ -206,8 +196,6 @@ object Routes {
     settlement: SettlementService[F],
     funds: FundsService[F]
   ): HttpRoutes[F] = {
-    val dsl = new Http4sDsl[F] {}; import dsl._
-
     val marketPF =
       postMarketOrdersPF[F](order)
         .orElse(deleteMarketOrderPF[F](order))

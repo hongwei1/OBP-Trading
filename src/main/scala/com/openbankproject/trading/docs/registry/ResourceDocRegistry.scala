@@ -4,20 +4,23 @@ import com.openbankproject.trading.docs.model.ResourceDoc
 import scala.collection.concurrent.TrieMap
 
 object ResourceDocRegistry {
-  private[this] val byOperationId: TrieMap[String, ResourceDoc] = TrieMap.empty
+  // Use existential type for storage
+  private[this] val byPartialFunctionName: TrieMap[String, ResourceDoc[F] forSome { type F[_] }] = TrieMap.empty
 
-  def register(doc: ResourceDoc): Unit = {
-    byOperationId.put(doc.operationId, doc)
+  def register[F[_]](doc: ResourceDoc[F]): Unit = {
+    byPartialFunctionName.put(doc.partialFunctionName, doc)
     ()
   }
 
-  def registerAll(docs: Iterable[ResourceDoc]): Unit = docs.foreach(register)
+  def registerAll(docs: Iterable[ResourceDoc[F] forSome { type F[_] }]): Unit = docs.foreach(register(_))
 
-  def get(operationId: String): Option[ResourceDoc] = byOperationId.get(operationId)
+  def get(partialFunctionName: String): Option[ResourceDoc[F] forSome { type F[_] }] = 
+    byPartialFunctionName.get(partialFunctionName)
 
-  def all: Vector[ResourceDoc] = byOperationId.values.toVector.sortBy(_.operationId)
+  def all: Vector[ResourceDoc[F] forSome { type F[_] }] = 
+    byPartialFunctionName.values.toVector.sortBy(_.partialFunctionName)
 
-  def clear(): Unit = byOperationId.clear()
+  def clear(): Unit = byPartialFunctionName.clear()
 }
 
 
