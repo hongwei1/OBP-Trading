@@ -87,6 +87,20 @@ connectors {
 
 See `ai.log` for detailed development history and architectural decisions.
 
+
+## Deployment
+
+1. Build the assembly JAR:
+   ```bash
+   sbt assembly
+   ```
+2. Copy the JAR from `target/scala-2.13/obp-trading-assembly-0.1.0-SNAPSHOT.jar` to your server.
+3. Run with Java 11+:
+   ```bash
+   java -jar obp-trading-assembly-0.1.0-SNAPSHOT.jar
+   ```
+
+
 ## License
 
 AGPL-3.0  
