@@ -2,6 +2,9 @@ package com.openbankproject.trading.http
 
 import cats.effect.IO
 import cats.syntax.all._
+import com.github.andyglow.jsonschema.AsCirce._
+import json.{Json => SchemaJson, _}
+import json.schema.Version.Draft07
 import com.openbankproject.trading.docs.model.{EmptyBody, ImplementedByJson, ResourceDoc, ResourceDocJson, ResourceDocMeta, ResourceDocsJson}
 import com.openbankproject.trading.docs.registry.ResourceDocRegistry
 import com.openbankproject.trading.service._
@@ -9,11 +12,11 @@ import io.circe.generic.auto._
 import io.circe.parser.parse
 import io.circe.syntax._
 import io.circe.Json
-import java.time.Instant
 import org.http4s._
 import org.http4s.circe.CirceEntityCodec._
 import org.http4s.dsl.io._
 
+import java.time.Instant
 import java.util.UUID
 import scala.util.Try
 
@@ -150,6 +153,14 @@ object Routes {
     executed_at: String,
     counterpart_offer_id: String
   )
+  private implicit val obpOfferExecutionSchema: Schema[ObpOfferExecutionExample] =
+    SchemaJson.schema[ObpOfferExecutionExample]
+  private implicit val obpOfferDetailsSchema: Schema[ObpOfferDetailsExample] =
+    SchemaJson.schema[ObpOfferDetailsExample]
+  private implicit val obpOfferAccountSchema: Schema[ObpOfferAccountInfoExample] =
+    SchemaJson.schema[ObpOfferAccountInfoExample]
+  private implicit val obpOfferResponseSchema: Schema[ObpOfferResponseExample] =
+    SchemaJson.schema[ObpOfferResponseExample]
   private final case class ObpOfferDetailsExample(
     offer_type: String,
     asset_code: String,
@@ -175,6 +186,14 @@ object Routes {
     account_info: ObpOfferAccountInfoExample,
     executions: List[ObpOfferExecutionExample]
   )
+  private val draft07 = Draft07("http://json-schema.org/draft-07/schema#")
+  private def schemaOf[T: Schema]: Json =
+    SchemaJson.schema[T].asCirce(draft07)
+  private def schemaFromProduct(p: Product): Option[Json] = p match {
+    case EmptyBody => None
+    case _: ObpOfferResponseExample => Some(schemaOf[ObpOfferResponseExample])
+    case _ => None
+  }
   // ResourceDoc for: GET /obp/v7.0.0/.../trading/offers/{OFFER_ID}
   def getOfferDoc(offer: OfferService): ResourceDoc = ResourceDoc(
     partialFunction = getOfferPF(offer),
@@ -264,8 +283,8 @@ object Routes {
       success_response_body = productToJson(doc.successResponseBody),
       error_response_bodies = doc.errorResponseBodies,
       tags = doc.tags,
-      typed_request_body = Json.Null,
-      typed_success_response_body = Json.Null,
+      typed_request_body = schemaFromProduct(doc.exampleRequestBody).getOrElse(Json.Null),
+      typed_success_response_body = schemaFromProduct(doc.successResponseBody).getOrElse(Json.Null),
       roles = doc.roles,
       is_featured = doc.isFeatured,
       special_instructions = doc.specialInstructions,
