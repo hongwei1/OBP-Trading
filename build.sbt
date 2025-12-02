@@ -45,8 +45,8 @@ libraryDependencies ++= Seq(
   "io.circe" %% "circe-literal" % "0.14.6",
 
   // JSON Schema generation
-  "io.github.andyglow" %% "scala-jsonschema" % "0.7.11",
-  "io.github.andyglow" %% "scala-jsonschema-circe-json" % "0.7.11",
+  "com.github.andyglow" %% "scala-jsonschema" % "0.7.11",
+  "com.github.andyglow" %% "scala-jsonschema-circe-json" % "0.7.11",
   
   
   // Database
