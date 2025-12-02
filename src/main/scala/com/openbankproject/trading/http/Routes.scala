@@ -189,11 +189,10 @@ object Routes {
   private val draft07 = Draft07("http://json-schema.org/draft-07/schema#")
   private def schemaOf[T: Schema]: Json =
     SchemaJson.schema[T].asCirce(draft07)
-  private def schemaFromProduct(p: Product): Option[Json] = p match {
-    case EmptyBody => None
-    case _: ObpOfferResponseExample => Some(schemaOf[ObpOfferResponseExample])
-    case _ => None
-  }
+  private def schemaFromProduct(p: Option[Product]): Option[Json] =
+    p.collect {
+      case _: ObpOfferResponseExample => schemaOf[ObpOfferResponseExample]
+    }
   // ResourceDoc for: GET /obp/v7.0.0/.../trading/offers/{OFFER_ID}
   def getOfferDoc(offer: OfferService): ResourceDoc = ResourceDoc(
     partialFunction = getOfferPF(offer),
@@ -203,7 +202,7 @@ object Routes {
     requestUrl = "/obp/v7.0.0/banks/BANK_ID/accounts/ACCOUNT_ID/views/VIEW_ID/trading/offers/OFFER_ID",
     summary = "Get trading offer by id",
     description = "Returns the trading offer details by id for the given bank/account/view.",
-    exampleRequestBody = EmptyBody,
+    exampleRequestBody = None,
     successResponseBody = ObpOfferResponseExample(
       offer_id = "offer_789",
       status = "active",
@@ -240,7 +239,7 @@ object Routes {
     roles = None,
     isFeatured = false,
     specialInstructions = None,
-    specifiedUrl = None,
+    specifiedUrl = "/banks/BANK_ID/accounts/ACCOUNT_ID/views/VIEW_ID/trading/offers/OFFER_ID",
     createdByBankId = None
   )
 
@@ -279,12 +278,12 @@ object Routes {
       summary = doc.summary,
       description = doc.description,
       description_markdown = doc.description,
-      example_request_body = productToJson(doc.exampleRequestBody),
+      example_request_body = doc.exampleRequestBody.map(productToJson),
       success_response_body = productToJson(doc.successResponseBody),
       error_response_bodies = doc.errorResponseBodies,
       tags = doc.tags,
-      typed_request_body = schemaFromProduct(doc.exampleRequestBody).getOrElse(Json.Null),
-      typed_success_response_body = schemaFromProduct(doc.successResponseBody).getOrElse(Json.Null),
+      typed_request_body = schemaFromProduct(doc.exampleRequestBody),
+      typed_success_response_body = schemaFromProduct(Some(doc.successResponseBody)),
       roles = doc.roles,
       is_featured = doc.isFeatured,
       special_instructions = doc.specialInstructions,

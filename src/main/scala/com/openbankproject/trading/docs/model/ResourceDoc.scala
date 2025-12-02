@@ -29,14 +29,14 @@ final case class ResourceDoc(
   requestUrl: String,
   summary: String,
   description: String,
-  exampleRequestBody: Product,
+  exampleRequestBody: Option[Product] = None,
   successResponseBody: Product,
   errorResponseBodies: List[String],
   tags: List[String],
   roles: Option[List[String]] = None,
   isFeatured: Boolean = false,
   specialInstructions: Option[String] = None,
-  specifiedUrl: Option[String] = None,
+  specifiedUrl: String = "",
   createdByBankId: Option[String] = None
 ) {
   require(partialFunctionName.trim.nonEmpty, "partialFunctionName must be non-empty")
@@ -80,16 +80,16 @@ final case class ResourceDocJson(
   summary: String,
   description: String,
   description_markdown: String,
-  example_request_body: Json,
+  example_request_body: Option[Json],
   success_response_body: Json,
   error_response_bodies: List[String],
   tags: List[String],
-  typed_request_body: Json,
-  typed_success_response_body: Json,
+  typed_request_body: Option[Json],
+  typed_success_response_body: Option[Json],
   roles: Option[List[String]] = None,
   is_featured: Boolean = false,
   special_instructions: Option[String] = None,
-  specified_url: Option[String] = None,
+  specified_url: String,
   connector_methods: List[String] = Nil,
   created_by_bank_id: Option[String] = None
 )
