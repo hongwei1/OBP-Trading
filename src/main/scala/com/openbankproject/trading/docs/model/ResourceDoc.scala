@@ -109,7 +109,7 @@ object ResourceDocJson {
     deriveDecoder[ResourceDocMeta]
 
   implicit val resourceDocJsonEncoder: Encoder[ResourceDocJson] =
-    deriveEncoder[ResourceDocJson]
+    deriveEncoder[ResourceDocJson].mapJson(_.dropNullValues)
   implicit val resourceDocJsonDecoder: Decoder[ResourceDocJson] =
     deriveDecoder[ResourceDocJson]
 
