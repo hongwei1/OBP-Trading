@@ -2,13 +2,14 @@ package com.openbankproject.trading.http
 
 import cats.effect.IO
 import cats.syntax.all._
-import com.openbankproject.trading.docs.model.{EmptyBody, ImplementedByJson, ResourceDoc, ResourceDocJson}
+import com.openbankproject.trading.docs.model.{EmptyBody, ImplementedByJson, ResourceDoc, ResourceDocJson, ResourceDocMeta, ResourceDocsJson}
 import com.openbankproject.trading.docs.registry.ResourceDocRegistry
 import com.openbankproject.trading.service._
 import io.circe.generic.auto._
 import io.circe.parser.parse
 import io.circe.syntax._
 import io.circe.Json
+import java.time.Instant
 import org.http4s._
 import org.http4s.circe.CirceEntityCodec._
 import org.http4s.dsl.io._
@@ -180,7 +181,7 @@ object Routes {
     implementedInApiVersion = "OBPv7.0.0",
     partialFunctionName = "getOfferPF",
     requestVerb = "GET",
-    requestUrl = "/obp/v7.0.0/banks/{BANK_ID}/accounts/{ACCOUNT_ID}/views/{VIEW_ID}/trading/offers/{OFFER_ID}",
+    requestUrl = "/obp/v7.0.0/banks/BANK_ID/accounts/ACCOUNT_ID/views/VIEW_ID/trading/offers/OFFER_ID",
     summary = "Get trading offer by id",
     description = "Returns the trading offer details by id for the given bank/account/view.",
     exampleRequestBody = EmptyBody,
@@ -247,13 +248,14 @@ object Routes {
   private def productToJson(p: Product): Json = p match {
     case EmptyBody => Json.Null
     case resp: ObpOfferResponseExample => resp.asJson
-    case other => Json.fromString(other.toString).asJson
+    case other => Json.fromString(other.toString)
   }
 
   private def toResourceDocJson(doc: ResourceDoc): ResourceDocJson =
     ResourceDocJson(
-      operation_id = doc.implementedInApiVersion+"-"+doc.partialFunctionName,
+      operation_id = doc.implementedInApiVersion + "-" + doc.partialFunctionName,
       implemented_by = ImplementedByJson(doc.implementedInApiVersion, doc.partialFunctionName),
+      request_verb = doc.requestVerb,
       request_url = doc.requestUrl,
       summary = doc.summary,
       description = doc.description,
@@ -272,11 +274,22 @@ object Routes {
       created_by_bank_id = doc.createdByBankId
     )
 
+  private def normalizeVersion(apiVersion: String): String = {
+    val upper = apiVersion.toUpperCase
+    if (upper.startsWith("OBP")) upper else s"OBP$upper"
+  }
+
   def getResourceDocsPF: OBPEndpoint = {
     {
       case GET -> Root / "obp" / "v7.0.0" / "resource-docs" / apiVersion / "obp" =>
-        val docs = ResourceDocRegistry.all.map(toResourceDocJson)
-        Ok(docs.asJson)
+        val normalized = normalizeVersion(apiVersion)
+        val docs = ResourceDocRegistry.all
+          .filter(_.implementedInApiVersion.equalsIgnoreCase(normalized))
+          .map(toResourceDocJson)
+          .toList
+        val meta = ResourceDocMeta(response_date = Instant.now(), count = docs.size)
+        val payload = ResourceDocsJson(resource_docs = docs, meta = Some(meta))
+        Ok(payload.asJson)
     }
   }
 

@@ -1,9 +1,8 @@
 package com.openbankproject.trading.docs.model
 
-import org.http4s.{Request, Response}
-import cats.effect.IO
 import com.openbankproject.trading.http.OBPEndpoint
 import io.circe.Json
+import java.time.Instant
 
 /**
   * ResourceDoc aligned with OBP-API structure.
@@ -56,9 +55,27 @@ final case class ImplementedByJson(
 /**
   * Export-friendly ResourceDocJson, mirroring OBP-API structure for docs/export.
   */
+
+/**
+  * Metadata summary for exported ResourceDocs.
+  */
+final case class ResourceDocMeta(
+  response_date: Instant,
+  count: Int
+)
+
+/**
+  * Wrapper for exported docs list and metadata.
+  */
+final case class ResourceDocsJson(
+  resource_docs: List[ResourceDocJson],
+  meta: Option[ResourceDocMeta] = None
+)
+
 final case class ResourceDocJson(
   operation_id: String,
   implemented_by: ImplementedByJson,
+  request_verb: String,
   request_url: String,
   summary: String,
   description: String,
@@ -86,8 +103,18 @@ object ResourceDocJson {
   implicit val implementedByJsonDecoder: Decoder[ImplementedByJson] =
     deriveDecoder[ImplementedByJson]
 
+  implicit val resourceDocMetaEncoder: Encoder[ResourceDocMeta] =
+    deriveEncoder[ResourceDocMeta]
+  implicit val resourceDocMetaDecoder: Decoder[ResourceDocMeta] =
+    deriveDecoder[ResourceDocMeta]
+
   implicit val resourceDocJsonEncoder: Encoder[ResourceDocJson] =
     deriveEncoder[ResourceDocJson]
   implicit val resourceDocJsonDecoder: Decoder[ResourceDocJson] =
     deriveDecoder[ResourceDocJson]
+
+  implicit val resourceDocsJsonEncoder: Encoder[ResourceDocsJson] =
+    deriveEncoder[ResourceDocsJson]
+  implicit val resourceDocsJsonDecoder: Decoder[ResourceDocsJson] =
+    deriveDecoder[ResourceDocsJson]
 }
